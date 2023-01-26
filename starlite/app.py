@@ -19,10 +19,9 @@ from starlite.exceptions import (
 )
 from starlite.handlers.http import HTTPRouteHandler
 from starlite.middleware.cors import CORSMiddleware
-from starlite.openapi.path_item import create_path_item
 from starlite.router import Router
 from starlite.routes import ASGIRoute, HTTPRoute, WebSocketRoute
-from starlite.signature import create_signature_model
+from starlite.signature.parsing import create_signature_model
 from starlite.types import Empty
 from starlite.types.internal_types import PathParameterDefinition
 from starlite.utils import (
@@ -720,6 +719,8 @@ class Starlite(Router):
         Returns:
             None
         """
+        from starlite.openapi.path_item import create_path_item
+
         if not self.openapi_config or not self.openapi_schema or self.openapi_schema.paths is None:
             raise ImproperlyConfiguredException("Cannot generate OpenAPI schema without initializing an OpenAPIConfig")
 

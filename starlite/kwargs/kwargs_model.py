@@ -42,12 +42,13 @@ from starlite.kwargs.parameter_definition import (
     merge_parameter_sets,
 )
 from starlite.params import BodyKwarg, ParameterKwarg
-from starlite.signature import SignatureModel, get_signature_model
-from starlite.signature.models import SignatureField
+from starlite.signature.field import SignatureField
+from starlite.signature.utils import get_signature_model
 
 if TYPE_CHECKING:
     from starlite.connection import ASGIConnection
     from starlite.di import Provide
+    from starlite.signature.models import SignatureModel
 
 
 class KwargsModel:

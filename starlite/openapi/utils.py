@@ -5,7 +5,7 @@ from starlite.exceptions import ImproperlyConfiguredException
 from starlite.openapi.enums import OpenAPIType
 
 if TYPE_CHECKING:
-    from starlite.signature.models import SignatureField
+    from starlite.signature.field import SignatureField
 
 CAPITAL_LETTERS_PATTERN = re.compile(r"(?=[A-Z])")
 

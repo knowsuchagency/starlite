@@ -10,9 +10,11 @@ from typing import (
     Set,
     Tuple,
     Type,
+    Union,
     cast,
 )
 
+from msgspec import defstruct
 from pydantic import create_model
 from pydantic.fields import FieldInfo, Undefined
 from pydantic_factories import ModelFactory
@@ -22,7 +24,7 @@ from starlite.constants import SKIP_VALIDATION_NAMES, UNDEFINED_SENTINELS
 from starlite.exceptions import ImproperlyConfiguredException
 from starlite.params import BodyKwarg, DependencyKwarg, ParameterKwarg
 from starlite.plugins.base import PluginMapping, PluginProtocol, get_plugin_for_value
-from starlite.signature.models import PydanticSignatureModel, SignatureModel
+from starlite.signature.models import MsgSpecSignatureModel, PydanticSignatureModel
 from starlite.types import Empty
 from starlite.utils import is_optional_union
 from starlite.utils.helpers import unwrap_partial
@@ -163,7 +165,7 @@ def parse_fn_signature(
 
 def create_signature_model(
     fn: "AnyCallable", plugins: List["PluginProtocol"], dependency_name_set: Set[str]
-) -> Type[SignatureModel]:
+) -> Union[Type["PydanticSignatureModel"], Type["MsgSpecSignatureModel"]]:
     """Create a model for a callable's signature. The model can than be used to parse and validate before passing it to
     the callable.
 
@@ -186,16 +188,78 @@ def create_signature_model(
         dependency_name_set=dependency_name_set,
     )
 
-    # TODO: we will implement logic here to determine what kind of SignatureModel we are creating.
-    # For now this is only pydantic:
+    if any(p.annotation and hasattr(p.annotation, "__get_validators__") for p in parsed_params):
+        signature_model = create_pydantic_signature_model(
+            fn_name=fn_name,
+            fn_module=fn_module,
+            parsed_params=parsed_params,
+            return_annotation=return_annotation,
+            field_plugin_mappings=field_plugin_mappings,
+            dependency_names={*dependency_name_set, *dependency_names},
+        )
+    else:
+        signature_model = create_msgspec_signature_model(
+            fn_name=fn_name,
+            fn_module=fn_module,
+            parsed_params=parsed_params,
+            return_annotation=return_annotation,
+            field_plugin_mappings=field_plugin_mappings,
+            dependency_names={*dependency_name_set, *dependency_names},
+        )
 
-    return create_pydantic_signature_model(
-        fn_name=fn_name,
-        fn_module=fn_module,
-        parsed_params=parsed_params,
-        return_annotation=return_annotation,
-        field_plugin_mappings=field_plugin_mappings,
-        dependency_names={*dependency_name_set, *dependency_names},
+    signature_model.dependency_name_set = dependency_names
+    signature_model.field_plugin_mappings = field_plugin_mappings
+    signature_model.return_annotation = return_annotation
+    signature_model.populate_signature_fields()
+    return signature_model
+
+
+def create_msgspec_signature_model(
+    fn_name: str,
+    fn_module: Optional[str],
+    parsed_params: List[ParsedSignatureParameter],
+    return_annotation: Any,
+    field_plugin_mappings: Dict[str, "PluginMapping"],
+    dependency_names: Set[str],
+) -> Type["MsgSpecSignatureModel"]:
+    struct_params: List[Union[Tuple[str, Type], Tuple[str, Type, Any]]] = []
+
+    for parameter in parsed_params:
+        if parameter.should_skip_validation:
+            if isinstance(parameter.default, DependencyKwarg):
+                struct_params.append(
+                    (
+                        parameter.name,
+                        Any,
+                        parameter.default.default if parameter.default.default is not Empty else None,
+                    )
+                )
+            else:
+                struct_params.append(
+                    (parameter.name, Any, parameter.default)
+                    if parameter.default is not Empty
+                    else (parameter.name, Any)
+                )
+        elif isinstance(parameter.default, (ParameterKwarg, BodyKwarg)):
+            if parameter.default.default is not Empty:
+                struct_params.append((parameter.name, parameter.annotation, parameter.default.default))
+            else:
+                struct_params.append((parameter.name, parameter.annotation))
+        elif parameter.default_defined:
+            struct_params.append((parameter.name, parameter.annotation, parameter.default))
+        elif not parameter.optional:
+            struct_params.append((parameter.name, parameter.annotation))
+        else:
+            struct_params.append((parameter.name, parameter.annotation, None))
+
+    return cast(
+        "Type[MsgSpecSignatureModel]",
+        defstruct(
+            f"{fn_name}MsgspecSignatureModel",
+            struct_params,
+            bases=(MsgSpecSignatureModel,),
+            module=fn_module,
+        ),
     )
 
 
@@ -206,7 +270,7 @@ def create_pydantic_signature_model(
     return_annotation: Any,
     field_plugin_mappings: Dict[str, "PluginMapping"],
     dependency_names: Set[str],
-) -> Type[PydanticSignatureModel]:
+) -> Type["PydanticSignatureModel"]:
     """Create a pydantic based SignatureModel.
 
     Args:
@@ -244,14 +308,10 @@ def create_pydantic_signature_model(
         else:
             field_definitions[parameter.name] = (parameter.annotation, None)
 
-    model: Type[PydanticSignatureModel] = create_model(  # type: ignore
-        f"{fn_name}_signature_model",
+    model: Type["PydanticSignatureModel"] = create_model(  # type: ignore
+        f"{fn_name}PydanticSignatureModel",
         __base__=PydanticSignatureModel,
         __module__=fn_module or "pydantic.main",
         **field_definitions,
     )
-    model.return_annotation = return_annotation
-    model.field_plugin_mappings = field_plugin_mappings
-    model.dependency_name_set = dependency_names
-    model.populate_signature_fields()
     return model
