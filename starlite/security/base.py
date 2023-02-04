@@ -19,6 +19,7 @@ from pydantic.generics import GenericModel
 from starlite import Provide
 from starlite.connection import ASGIConnection
 from starlite.middleware.authentication import AbstractAuthenticationMiddleware
+from starlite.provide import Provide
 from starlite.types import ControllerRouterHandler, Guard, Scopes, SyncOrAsyncUnion
 from starlite.utils.sync import AsyncCallable
 
