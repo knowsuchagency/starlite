@@ -1,34 +1,95 @@
-from dataclasses import asdict
+"""
+Examples
+    from __future__ import annotations
+
+    from dataclasses import asdict, dataclass
+    from typing import TYPE_CHECKING, Any, Dict, Type, TypeGuard, TypeVar
+
+    import pytest
+    from pydantic import BaseModel
+
+    from starlite import dto
+    from starlite.utils.model import convert_dataclass_to_model
+    from starlite.utils.predicates import is_dataclass_class_or_instance
+
+    if TYPE_CHECKING:
+        from starlite.plugins import PluginProtocol
+
+
+    class DataclassPlugin(PluginProtocol[dataclass]):
+        @staticmethod
+        def is_plugin_supported_type(value: Any) -> TypeGuard[dataclass]:
+            return is_dataclass_class_or_instance(value)
+
+        def to_pydantic_model_class(self, model_class: Type[dataclass], **kwargs: Any) -> Type[BaseModel]:
+            return convert_dataclass_to_model(model_class)
+
+        def from_pydantic_model_instance(
+            self, model_class: Type[dataclass], pydantic_model_instance: BaseModel
+        ) -> DataclassT:
+            return model_class(**pydantic_model_instance.dict())
+
+        def to_dict(self, model_instance: dataclass) -> Dict[str, Any]:
+            return asdict(model_instance)
+
+        def from_dict(self, model_class: Type[dataclass], **kwargs: Any) -> dataclass:
+            return model_class(**kwargs)
+
+
+    DataclassT = TypeVar("DataclassT", bound=dataclass)
+
+
+    class DataclassDTO(dto.Factory[Type[DataclassT]]):
+        plugins = DataclassPlugin
+
+
+    @dataclass()
+    class Model1:
+        a: int
+        b: str
+
+
+    @dataclass()
+    class Model2:
+        c: float
+        one: Model1
+
+    ModelDTO = DataclassDTO[Model2]
+
+    # to add fields onto a DTO
+    class ModelDTO(DataclassDTO[Model]):
+        new: int
+        fields: str
+
+    dto = ModelDTO.parse_obj({})
+    assert dto._model_type is Model
+    assert isinstance(dto.to_model_instance(), Model)
+"""
 from inspect import isawaitable
 from typing import (
     TYPE_CHECKING,
     Any,
+    Annotated,
     ClassVar,
     Dict,
     Generic,
     List,
-    Optional,
+    Set,
     Tuple,
     Type,
     TypeVar,
     Union,
     cast,
+    get_args,
+    get_origin,
 )
 
 from pydantic import BaseConfig, BaseModel, create_model
-from pydantic.fields import SHAPE_SINGLETON, ModelField, Undefined
-from pydantic.generics import GenericModel
-from pydantic_factories import ModelFactory
+from pydantic.fields import SHAPE_SINGLETON, ModelField
 
 from starlite.exceptions import ImproperlyConfiguredException
-from starlite.plugins import PluginProtocol, get_plugin_for_value
-from starlite.utils import (
-    convert_dataclass_to_model,
-    convert_typeddict_to_model,
-    is_async_callable,
-    is_dataclass_class_or_instance,
-    is_typed_dict,
-)
+from starlite.plugins import PluginProtocol
+from starlite.utils import is_async_callable
 
 if TYPE_CHECKING:
     from typing import Awaitable
@@ -56,52 +117,88 @@ def get_field_type(model_field: ModelField) -> Any:
 T = TypeVar("T")
 
 
-class DTO(GenericModel, Generic[T]):
-    """Data Transfer Object."""
+class DTOConfig(BaseModel):
+    exclude: set[str] = set()
+    field_mapping: Dict[str, str] = {}
+
+
+class Factory(BaseModel, Generic[T]):
+    """Create :class:`DTO` type.
+
+    Pydantic models, :class:`TypedDict <typing.TypedDict>` and dataclasses are natively supported. Other types supported
+    via plugins.
+    """
 
     class Config(BaseConfig):
-        arbitrary_types_allowed = True
         orm_mode = True
 
-    dto_source_model: ClassVar[Any]
-    dto_field_mapping: ClassVar[Dict[str, str]]
-    dto_source_plugin: ClassVar[Optional[PluginProtocol]] = None
+    _model_type: ClassVar[Any]
+    _config: DTOConfig = DTOConfig()
+    _reverse_field_mappings: Dict[str, str]
+    plugin: ClassVar[PluginProtocol]
+
+    def __class_getitem__(cls, item: Union[TypeVar, Type[T], Annotated[Type[T], DTOConfig]]) -> "Type[Factory[T]]":
+        if isinstance(item, TypeVar):
+            return cls
+
+        if get_origin(item) is Annotated:
+            item, config = get_args(item)
+        else:
+            config = DTOConfig()
+
+        field_definitions = cls._create_field_definitions(
+            cls._config.exclude,
+            cls._config.field_mapping,
+            cls.plugin.to_pydantic_model_class(item).__fields__,
+        )
+
+        reverse_field_mappings = {
+            value[0] if not isinstance(value, str) else value: key for key, value in cls._config.field_mapping.items()
+        }
+
+        new: "Type[Factory[T]]" = create_model(
+            f"{item.__name__}DTO",
+            __base__=cls,
+            __module__=getattr(item, "__module__", __name__),
+            __cls_kwargs__={"model_type": item, "config": config, "reverse_field_mappings": reverse_field_mappings},
+            **field_definitions,
+        )
+
+        return new
+
+    def __init_subclass__(cls, model_type: type[T] | None = None, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if model_type is not None:
+            cls.model_type = model_type
+
+    def to_model_instance(self) -> T:
+        values = self.dict()
+
+        for dto_key, original_key in self._reverse_field_mappings.items():
+            value = values.pop(dto_key)
+            values[original_key] = value
+
+        return self.plugin.from_dict(self._model_type, **values)
 
     @classmethod
-    def _from_value_mapping(cls, mapping: Dict[str, Any]) -> "DTO[T]":
-        for dto_key, original_key in cls.dto_field_mapping.items():
+    def _from_value_mapping(cls, mapping: Dict[str, Any]) -> "Factory[T]":
+        for dto_key, original_key in cls._config.field_mapping.items():
             value = mapping.pop(original_key)
             mapping[dto_key] = value
         return cls(**mapping)
 
     @classmethod
-    def from_model_instance(cls, model_instance: T) -> "DTO[T]":
-        """Given an instance of the source model, create an instance of the given DTO subclass.
-
-        Args:
-            model_instance (T): instance of source model.
-
-        Returns:
-            Instance of the :class:`DTO` subclass.
-        """
-        if cls.dto_source_plugin is not None and cls.dto_source_plugin.is_plugin_supported_type(model_instance):
-            result = cls.dto_source_plugin.to_dict(model_instance=model_instance)
-            if isawaitable(result):
-                raise ImproperlyConfiguredException(
-                    f"plugin {type(cls.dto_source_plugin).__name__} to_dict method is async. "
-                    f"Use 'DTO.from_model_instance_async instead'",
-                )
-            values = cast("Dict[str, Any]", result)
-        elif isinstance(model_instance, BaseModel):
-            values = model_instance.dict()
-        elif isinstance(model_instance, dict):
-            values = dict(model_instance)  # copy required as `_from_value_mapping()`` mutates ``values`.
-        else:
-            values = asdict(model_instance)
-        return cls._from_value_mapping(mapping=values)
+    def from_model_instance(cls: "type[Factory[T]]", model_instance: T) -> "Factory[T]":
+        result = cls.plugin.to_dict(model_instance=model_instance)
+        if isawaitable(result):
+            raise ImproperlyConfiguredException(
+                f"plugin {type(cls.plugin).__name__} to_dict method is async. "
+                f"Use 'DTO.from_model_instance_async instead'",
+            )
+        return cls._from_value_mapping(result)
 
     @classmethod
-    async def from_model_instance_async(cls, model_instance: T) -> "DTO[T]":
+    async def from_model_instance_async(cls, model_instance: T) -> "Factory[T]":
         """Given an instance of the source model, create an instance of the given DTO subclass asynchronously.
 
         Args:
@@ -110,211 +207,25 @@ class DTO(GenericModel, Generic[T]):
         Returns:
             Instance of the :class:`DTO` subclass.
         """
-        if (
-            cls.dto_source_plugin is not None
-            and cls.dto_source_plugin.is_plugin_supported_type(model_instance)
-            and is_async_callable(cls.dto_source_plugin.to_dict)
-        ):
-            values = await cast(
-                "Awaitable[Dict[str, Any]]", cls.dto_source_plugin.to_dict(model_instance=model_instance)
-            )
+        if is_async_callable(cls.plugin.to_dict):
+            values = await cast("Awaitable[Dict[str, Any]]", cls.plugin.to_dict(model_instance=model_instance))
             return cls._from_value_mapping(mapping=values)
         return cls.from_model_instance(model_instance=model_instance)
 
-    def to_model_instance(self) -> T:
-        """Convert the DTO instance into an instance of the original class from which the DTO was created.
-
-        Returns:
-            Instance of source model type.
-        """
-        values = self.dict()
-
-        for dto_key, original_key in self.dto_field_mapping.items():
-            value = values.pop(dto_key)
-            values[original_key] = value
-
-        if self.dto_source_plugin is not None and self.dto_source_plugin.is_plugin_supported_type(
-            self.dto_source_model
-        ):
-            return cast("T", self.dto_source_plugin.from_dict(model_class=self.dto_source_model, **values))
-
-        # we are dealing with a pydantic model or dataclass
-        return cast("T", self.dto_source_model(**values))
-
-
-class DTOFactory:
-    """Create :class:`DTO` type.
-
-    Pydantic models, :class:`TypedDict <typing.TypedDict>` and dataclasses are natively supported. Other types supported
-    via plugins.
-    """
-
-    def __init__(self, plugins: Optional[List[PluginProtocol]] = None) -> None:
-        """Initialize ``DTOFactory``
-
-        Args:
-            plugins: Plugins used to support ``DTO`` construction from arbitrary types.
-        """
-        self.plugins = plugins or []
-
-    def __call__(
-        self,
-        name: str,
-        source: Type[T],
-        exclude: Optional[List[str]] = None,
-        field_mapping: Optional[Dict[str, Union[str, Tuple[str, Any]]]] = None,
-        field_definitions: Optional[Dict[str, Tuple[Any, Any]]] = None,
-        base: Type[DTO] = DTO,
-    ) -> Type[DTO[T]]:
-        """Given a supported model class - either pydantic, :class:`TypedDict <typing.TypedDict>`, dataclass or a class supported
-        via plugins, create a DTO pydantic model class.
-
-        An instance of the factory must first be created, passing any plugins to it.
-        It can then be used to create a DTO by calling the instance like a function. Additionally, it can exclude (drop)
-        attributes specifies in the 'exclude' list and remap field names and/or field types.
-
-        For example, given a pydantic model
-
-        .. code-block: python
-
-            class MyClass(BaseModel):
-                first: int
-                second: int
-
-
-            MyClassDTO = DTOFactory()(
-                MyClass, exclude=["first"], field_mapping={"second": ("third", float)}
-            )
-
-
-        ``MyClassDTO`` is now equal to this:
-
-        .. code-block: python
-
-            class MyClassDTO(BaseModel):
-                third: float
-
-
-        It can be used as a regular pydantic model:
-
-        .. code-block: python
-
-            @post(path="/my-path")
-            def create_obj(data: MyClassDTO) -> MyClass:
-                ...
-
-
-        This will affect parsing, validation and how OpenAPI schema is generated exactly like when using a pydantic model.
-
-        Note: Although the value generated is a pydantic factory, because it is being generated programmatically,
-        it's currently not possible to extend editor auto-complete for the DTO properties - it will be typed as a
-        Pydantic BaseModel, but no attributes will be inferred in the editor.
-
-        Args:
-            name (str): This becomes the name of the generated pydantic model.
-            source (type[T]): A type that is either a subclass of ``BaseModel``, :class:`TypedDict <typing.TypedDict>`,
-                a ``dataclass`` or any other type with a plugin registered.
-            exclude (list[str] | None): Names of attributes on ``source``. Named Attributes will not have a field
-                generated on the resultant pydantic model.
-            field_mapping (dict[str, str | tuple[str, Any]] | None): Keys are names of attributes on ``source``. Values
-                are either a ``str`` to rename an attribute, or tuple `(str, Any)` to remap both name and type of the
-                attribute.
-            field_definitions (dict[str, tuple[Any, Any]] | None): Add fields to the model that don't exist on ``source``.
-                These are passed as kwargs to `pydantic.create_model()`.
-
-        Returns:
-            Type[DTO[T]]
-
-        Raises:
-            ImproperlyConfiguredException: If ``source`` is not a pydantic model, :class:`TypedDict <typing.TypedDict>`
-                or dataclass, and there is no plugin registered for its type.
-        """
-        field_definitions = field_definitions or {}
-        exclude = exclude or []
-        field_mapping = field_mapping or {}
-        fields, plugin = self._get_fields_from_source(source)
-        field_definitions = self._populate_field_definitions(exclude, field_definitions, field_mapping, fields)
-        dto = cast(
-            "Type[DTO[T]]", create_model(name, __base__=base, **field_definitions)  # type:ignore[call-overload]
-        )
-        dto.dto_source_model = source
-        dto.dto_source_plugin = plugin
-        dto.dto_field_mapping = {}
-        for key, value in field_mapping.items():
-            if not isinstance(value, str):
-                value = value[0]
-            dto.dto_field_mapping[value] = key
-        return dto
-
-    def _get_fields_from_source(
-        self, source: Type[T]  # pyright: ignore
-    ) -> Tuple[Dict[str, ModelField], Optional[PluginProtocol]]:
-        """Convert a ``BaseModel`` subclass, :class:`TypedDict <typing.TypedDict>`, ``dataclass`` or any other type that
-        has a plugin registered into a mapping of :class:`str` to ``ModelField``.
-        """
-        fields: Optional[Dict[str, ModelField]] = None
-        if plugin := get_plugin_for_value(value=source, plugins=self.plugins):
-            model = plugin.to_pydantic_model_class(model_class=source)
-            fields = model.__fields__
-
-            return fields, plugin
-
-        if issubclass(source, BaseModel):
-            source.update_forward_refs()
-            fields = source.__fields__
-        elif is_dataclass_class_or_instance(source):
-            fields = convert_dataclass_to_model(source).__fields__
-        elif is_typed_dict(source):
-            fields = convert_typeddict_to_model(source).__fields__
-
-        if fields:
-            return fields, plugin
-
-        raise ImproperlyConfiguredException(f"No supported plugin found for value {source} - cannot create value")
-
-    def _populate_field_definitions(
-        self,
-        exclude: List[str],
-        field_definitions: Dict[str, Tuple[Any, Any]],
-        field_mapping: Dict[str, Union[str, Tuple[str, Any]]],
-        fields: Dict[str, ModelField],
+    @classmethod
+    def _create_field_definitions(
+        cls, exclude: Set[str], field_mapping: Dict[str, Union[str, Tuple[str, Any]]], fields: Dict[str, ModelField]
     ) -> Dict[str, Tuple[Any, Any]]:
         """Populate ``field_definitions``, ignoring fields in ``exclude``, and remapping fields in ``field_mapping``."""
+        ret = {}
         for field_name, model_field in fields.items():
             if field_name in exclude:
                 continue
             field_type = get_field_type(model_field=model_field)
-            self._populate_single_field_definition(
-                field_definitions, field_mapping, field_name, field_type, model_field
-            )
-        return field_definitions
-
-    @classmethod
-    def _populate_single_field_definition(
-        cls,
-        field_definitions: Dict[str, Tuple[Any, Any]],
-        field_mapping: Dict[str, Union[str, Tuple[str, Any]]],
-        field_name: str,
-        field_type: Any,
-        model_field: ModelField,
-    ) -> None:
-        if field_name in field_mapping:
-            field_name, field_type = cls._remap_field(field_mapping, field_name, field_type)
-            if ModelFactory.is_constrained_field(field_type):
-                field_definitions[field_name] = (field_type, ...)
-            elif model_field.field_info.default not in (Undefined, None, ...):
-                field_definitions[field_name] = (field_type, model_field.default)
-            elif model_field.required or not model_field.allow_none:
-                field_definitions[field_name] = (field_type, ...)
-            else:
-                field_definitions[field_name] = (field_type, None)
-        else:
-            # prevents losing Optional
-            field_type = Optional[field_type] if model_field.allow_none else field_type
-            if ModelFactory.is_constrained_field(field_type):
-                field_definitions[field_name] = (field_type, ...)
-            else:
-                field_definitions[field_name] = (field_type, model_field.field_info)
+            if field_name in field_mapping:
+                field_name, field_type = cls._remap_field(field_mapping, field_name, field_type)
+            ret[field_name] = field_type, model_field.field_info
+        return ret
 
     @staticmethod
     def _remap_field(
