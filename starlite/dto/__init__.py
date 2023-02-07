@@ -1,5 +1,6 @@
-"""
-Examples
+"""Types for transferring data to and from domain models.
+
+Example:
     from __future__ import annotations
 
     from dataclasses import asdict, dataclass
@@ -65,7 +66,6 @@ Examples
     assert dto._model_type is Model
     assert isinstance(dto.to_model_instance(), Model)
 """
-from . import dataclasses
 from .config import Config
 from .factory import Factory
 

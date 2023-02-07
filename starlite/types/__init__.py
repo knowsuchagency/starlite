@@ -81,7 +81,7 @@ from .internal_types import (
     RouteHandlerType,
 )
 from .partial import Partial
-from .protocols import Logger, IsDataclass
+from .protocols import IsDataclass, Logger
 
 __all__ = (
     "ASGIApp",

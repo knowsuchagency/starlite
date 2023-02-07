@@ -1,12 +1,21 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import Generic, ClassVar, Any, TypeVar, Annotated, cast, get_origin, get_args
+from abc import ABC
+from typing import (
+    Annotated,
+    Any,
+    ClassVar,
+    Generic,
+    TypeVar,
+    cast,
+    get_args,
+    get_origin,
+)
 
-from pydantic import BaseModel, BaseConfig, create_model
+from pydantic import BaseConfig, BaseModel, create_model
 
-from starlite.plugins import PluginProtocol
 from starlite.exceptions import ImproperlyConfiguredException
+from starlite.plugins import PluginProtocol
 from starlite.utils import is_awaitable, is_not_awaitable
 
 from .config import Config as DTOConfig
@@ -51,10 +60,9 @@ class Factory(BaseModel, ABC, Generic[T]):
             value[0] if not isinstance(value, str) else value: key for key, value in config.field_mapping.items()
         }
 
-        new = create_model(
-            # "PluginProtocol[Any]" has no attribute "__name__"
-            f"{cls.plugin.__name__}Factory[{cls._model_type.__name__}]",  # type:ignore[attr-defined]
-            __config__=cls.__config__,
+        return create_model(
+            f"{type(cls.plugin).__name__}Factory[{item.__name__}]",
+            __config__=None,
             __base__=cls,
             __module__=str(getattr(item, "__module__", __name__)),
             __validators__={},
@@ -62,9 +70,7 @@ class Factory(BaseModel, ABC, Generic[T]):
             **field_definitions,
         )
 
-        return new
-
-    def __init_subclass__(
+    def __init_subclass__(  # pylint: disable=arguments-differ
         cls,
         model_type: type[T] | None = None,
         config: DTOConfig | None = None,
@@ -80,6 +86,11 @@ class Factory(BaseModel, ABC, Generic[T]):
             cls._reverse_field_mappings = reverse_field_mappings
 
     def to_model_instance(self) -> T:
+        """Convert self into instance of the model type.
+
+        Returns:
+            Instance of model type, populated from ``self``.
+        """
         values = self.dict()
 
         for dto_key, original_key in self._reverse_field_mappings.items():
@@ -89,7 +100,7 @@ class Factory(BaseModel, ABC, Generic[T]):
         return cast("T", self.plugin.from_dict(self._model_type, **values))
 
     @classmethod
-    def _from_value_mapping(cls, mapping: dict[str, Any]) -> "Factory[T]":
+    def _from_value_mapping(cls, mapping: dict[str, Any]) -> Factory[T]:
         for dto_key, original_key in cls._config.field_mapping.items():
             value = mapping.pop(original_key)
             mapping[dto_key] = value
@@ -97,6 +108,14 @@ class Factory(BaseModel, ABC, Generic[T]):
 
     @classmethod
     def from_model_instance(cls: type[Factory[T]], model_instance: T) -> Factory[T]:
+        """Create an instance of ``dto.Factory`` from an instance of the model.
+
+        Args:
+            model_instance: instance of the model
+
+        Returns:
+            Instance of ``dto.Factory``
+        """
         result = cls.plugin.to_dict(model_instance=model_instance)
         if is_not_awaitable(result):
             return cls._from_value_mapping(result)
@@ -115,10 +134,11 @@ class Factory(BaseModel, ABC, Generic[T]):
         Returns:
             Instance of the :class:`DTO` subclass.
         """
-        maybe_awaitable_mapping = cls.plugin.to_dict(model_instance)
-        if is_awaitable(maybe_awaitable_mapping):
-            mapping = await maybe_awaitable_mapping
+        maybe_awaitable = cls.plugin.to_dict(model_instance)
+        mapping: dict[str, Any]
+        if is_awaitable(maybe_awaitable):
+            mapping = await maybe_awaitable
         else:
-            # else branch of type guard doens't seem to reverse-narrow the type
-            mapping = maybe_awaitable_mapping  # type:ignore[assignment]
+            # else branch of type guard doesn't seem to reverse-narrow the type
+            mapping = maybe_awaitable  # type:ignore[assignment]
         return cls._from_value_mapping(mapping)

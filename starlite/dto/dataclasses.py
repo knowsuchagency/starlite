@@ -4,11 +4,13 @@ from typing import ClassVar
 
 from starlite.plugins.dataclasses import DataclassPlugin
 
-from .types import DataclassT
 from .factory import Factory
+from .types import DataclassT
 
-__all__ = ("DataclassDTOFactory",)
+__all__ = ("DataclassFactory",)
 
 
-class DataclassDTOFactory(Factory[DataclassT]):
+class DataclassFactory(Factory[DataclassT]):
+    """A DTO Factory type for dataclasses models."""
+
     plugin: ClassVar[DataclassPlugin] = DataclassPlugin()

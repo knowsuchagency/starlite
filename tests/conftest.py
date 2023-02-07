@@ -26,6 +26,7 @@ from pydantic import SecretBytes
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import StaticPool
 
+from starlite import Starlite
 from starlite.cache import SimpleCacheBackend
 from starlite.middleware.session import SessionMiddleware
 from starlite.middleware.session.base import (
@@ -58,6 +59,7 @@ from starlite.plugins.sql_alchemy import (
     SQLAlchemyEngineConfig,
     SQLAlchemyPlugin,
 )
+from starlite.testing import TestClient
 from tests.mocks import FakeAsyncMemcached
 
 if TYPE_CHECKING:
@@ -65,7 +67,6 @@ if TYPE_CHECKING:
 
     from pytest import MonkeyPatch
 
-    from starlite import Starlite
     from starlite.types import (
         AnyIOBackend,
         ASGIVersion,
@@ -390,3 +391,15 @@ def create_module(tmp_path: Path, monkeypatch: "MonkeyPatch") -> "Callable[[str]
 @pytest.fixture(scope="module")
 def mock_db() -> SimpleCacheBackend:
     return SimpleCacheBackend()
+
+
+@pytest.fixture
+def test_app() -> Starlite:
+    return Starlite()
+
+
+@pytest.fixture
+def test_client(test_app: Starlite) -> Generator[TestClient, None, None]:
+    test_client = TestClient(app=test_app)
+    with test_client:
+        yield test_client

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import TYPE_CHECKING, List
 
-from pydantic.fields import ModelField, SHAPE_SINGLETON
+from pydantic.fields import SHAPE_SINGLETON, ModelField
+
+if TYPE_CHECKING:
+    from typing import Any, Mapping
 
 
 def get_field_type(model_field: ModelField) -> Any:
@@ -24,7 +27,9 @@ def get_field_type(model_field: ModelField) -> Any:
     return List[inner_type]  # type: ignore
 
 
-def remap_field(field_mapping: dict[str, str | tuple[str, Any]], field_name: str, field_type: Any) -> tuple[str, Any]:
+def remap_field(
+    field_mapping: Mapping[str, str | tuple[str, Any]], field_name: str, field_type: Any
+) -> tuple[str, Any]:
     """Return tuple of field name and field type remapped according to entry in ``field_mapping``."""
     mapping = field_mapping[field_name]
     if isinstance(mapping, tuple):
@@ -35,7 +40,7 @@ def remap_field(field_mapping: dict[str, str | tuple[str, Any]], field_name: str
 
 
 def create_field_definitions(
-    exclude: set[str], field_mapping: dict[str, str | tuple[str, Any]], fields: dict[str, ModelField]
+    exclude: set[str], field_mapping: Mapping[str, str | tuple[str, Any]], fields: dict[str, ModelField]
 ) -> dict[str, tuple[Any, Any]]:
     """Populate ``field_definitions``, ignoring fields in ``exclude``, and remapping fields in ``field_mapping``."""
     ret = {}
