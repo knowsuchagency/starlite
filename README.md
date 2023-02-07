@@ -182,7 +182,7 @@ features. It ships with a builtin plugin for SQL Alchemy, which allows the user 
 "natively", i.e. as type parameters that will be serialized/deserialized and to return them as values from route
 handlers.
 
-Starlite also supports the programmatic creation of DTOs with a `DTOFactory` class, which also supports the use of
+Starlite also supports the programmatic creation of DTOs with a `dto.Factory` class, which also supports the use of
 plugins.
 
 ### OpenAPI

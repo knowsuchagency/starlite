@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Annotated
-
 from pydantic import BaseModel
+from typing_extensions import Annotated
 
 from starlite import dto
 from starlite.dto.pydantic import PydanticFactory

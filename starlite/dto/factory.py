@@ -1,18 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import (
-    Annotated,
-    Any,
-    ClassVar,
-    Generic,
-    TypeVar,
-    cast,
-    get_args,
-    get_origin,
-)
+from typing import Any, ClassVar, Dict, Generic, TypeVar, cast
 
 from pydantic import BaseConfig, BaseModel, create_model
+from typing_extensions import Annotated, get_args, get_origin
 
 from starlite.exceptions import ImproperlyConfiguredException
 from starlite.plugins import PluginProtocol
@@ -39,7 +31,7 @@ class Factory(BaseModel, ABC, Generic[T]):
 
     _model_type: ClassVar[Any]
     _config = DTOConfig()
-    _reverse_field_mappings: ClassVar[dict[str, str]]
+    _reverse_field_mappings: ClassVar[Dict[str, str]]
 
     def __class_getitem__(cls, item: TypeVar | type[T]) -> type[Factory[T]]:
         if isinstance(item, TypeVar):

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING
 
 import pytest
+from typing_extensions import Annotated
 
 from starlite.dto.dataclasses import DataclassFactory
 from tests.dto import CompositeDC

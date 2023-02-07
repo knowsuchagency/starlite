@@ -1,7 +1,7 @@
 Data Transfer Objects (DTOs)
 ============================
 
-Starlite includes a :class:`DTOFactory <starlite.dto.DTOFactory>` class that allows you to create DTOs from pydantic models,
+Starlite includes a :class:`dto.Factory <starlite.dto.Factory>` class that allows you to create DTOs from pydantic models,
 dataclasses, :class:`typing.TypedDict`, and any other class supported via plugins.
 
 An instance of the factory must first be created, optionally passing plugins to it as a kwarg. It can then be used to
@@ -22,7 +22,7 @@ regularly declared pydantic model.
     MyPy doesn't support using types defined using `Type[]` as a type, and MyPy will regard these as invalid types.
     There is currently no way to circumvent this (not even with a plugin) except using a # type: ignore comment.
 
-The :class:`DTOFactory <starlite.dto.DTOFactory>` class supports :doc:`plugins </usage/plugins/index>`, for example, this
+The :class:`Factory <starlite.dto.Factory>` class supports :doc:`plugins </usage/plugins/index>`, for example, this
 is how it could be used with an SQLAlchemy declarative class using the
 :doc:`SQLAlchemyPlugin </usage/plugins/sqlalchemy>`:
 

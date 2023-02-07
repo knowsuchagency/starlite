@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Annotated
-
 from sqlalchemy import Column, Float, Integer, String
 from sqlalchemy.orm import Mapped, declarative_base
+from typing_extensions import Annotated
 
 from starlite import Starlite, dto, get
 from starlite.plugins.sql_alchemy import SQLAlchemyPlugin

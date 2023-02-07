@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import List
+
 from dataclasses import dataclass, field
 
 
@@ -7,7 +9,7 @@ from dataclasses import dataclass, field
 class DC:
     a: float = 1.01
     b: str = "string"
-    c: list[int] = field(default_factory=lambda: [0, 1, 2, 3])
+    c: List[int] = field(default_factory=lambda: [0, 1, 2, 3])
 
 
 @dataclass

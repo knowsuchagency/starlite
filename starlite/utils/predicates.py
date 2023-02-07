@@ -60,7 +60,7 @@ def _get_origin(annotation: Any) -> Any:
     return origin if origin not in (Annotated, Required, NotRequired) else get_args(annotation)[0]
 
 
-def is_awaitable(value: Awaitable[T] | T) -> TypeGuard[Awaitable[T]]:
+def is_awaitable(value: Union[Awaitable[T], T]) -> TypeGuard[Awaitable[T]]:
     """A type narrowing version of ``inspect.isawaitable``.
 
     Args:
@@ -72,7 +72,7 @@ def is_awaitable(value: Awaitable[T] | T) -> TypeGuard[Awaitable[T]]:
     return isawaitable(value)
 
 
-def is_not_awaitable(value: Awaitable[T] | T) -> TypeGuard[T]:
+def is_not_awaitable(value: Union[Awaitable[T], T]) -> TypeGuard[T]:
     """An inverse type narrowing version of ``inspect.isawaitable``.
 
     Args:
