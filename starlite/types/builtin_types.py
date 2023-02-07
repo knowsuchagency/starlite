@@ -5,8 +5,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Type, Union
 
-    from pydantic_factories.protocols import DataclassProtocol
     from typing_extensions import TypeAlias, TypedDict
+
+    from .protocols import IsDataclass
 
 
 __all__ = [
@@ -16,9 +17,9 @@ __all__ = [
     "TypedDictClass",
 ]
 
-DataclassClass: "TypeAlias" = "Type[DataclassProtocol]"
+DataclassClass: "TypeAlias" = "Type[IsDataclass]"
 
-DataclassClassOrInstance: "TypeAlias" = "Union[DataclassClass, DataclassProtocol]"
+DataclassClassOrInstance: "TypeAlias" = "Union[DataclassClass, IsDataclass]"
 
 NoneType = type(None)
 
