@@ -11,6 +11,4 @@ __all__ = ("DataclassFactory",)
 
 
 class DataclassFactory(Factory[DataclassT]):
-    """A DTO Factory type for dataclasses models."""
-
     plugin: ClassVar[DataclassPlugin] = DataclassPlugin()

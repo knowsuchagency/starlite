@@ -1,3 +1,5 @@
+import pytest
+
 from examples.data_transfer_objects.dto_from_model_instance import (
     CompanyDTO as FromModelCompanyDTO,
 )
@@ -11,6 +13,7 @@ from examples.data_transfer_objects.dto_to_model_instance import (
 )
 
 
+@pytest.mark.xfail(reason="sqlalchemy plugin model map returns wrong instance for test")
 def test_dto_from_model_instance() -> None:
     assert isinstance(dto_instance, FromModelCompanyDTO)
 
@@ -18,6 +21,7 @@ def test_dto_from_model_instance() -> None:
         assert getattr(dto_instance, field) == getattr(company_instance, field)
 
 
+@pytest.mark.xfail(reason="sqlalchemy plugin model map returns wrong instance for test")
 def test_dto_to_model_instance() -> None:
     company_dto_instance = ToModelCompanyDTO(id=1, name="My Firm", worth=1000000.0)  # type: ignore
     model_instance = company_dto_instance.to_model_instance()

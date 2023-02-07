@@ -22,6 +22,7 @@ from .config import Config as DTOConfig
 from .utils import create_field_definitions
 
 T = TypeVar("T")
+FactoryT = TypeVar("FactoryT", bound="Factory")
 
 
 class Factory(BaseModel, ABC, Generic[T]):
@@ -34,10 +35,11 @@ class Factory(BaseModel, ABC, Generic[T]):
     class Config(BaseConfig):
         orm_mode = True
 
+    plugin: ClassVar[PluginProtocol]
+
     _model_type: ClassVar[Any]
     _config = DTOConfig()
     _reverse_field_mappings: ClassVar[dict[str, str]]
-    plugin: ClassVar[PluginProtocol]
 
     def __class_getitem__(cls, item: TypeVar | type[T]) -> type[Factory[T]]:
         if isinstance(item, TypeVar):
@@ -61,7 +63,7 @@ class Factory(BaseModel, ABC, Generic[T]):
         }
 
         return create_model(
-            f"{type(cls.plugin).__name__}Factory[{item.__name__}]",
+            f"{cls.__name__}[{item.__name__}]",
             __config__=None,
             __base__=cls,
             __module__=str(getattr(item, "__module__", __name__)),
@@ -100,14 +102,14 @@ class Factory(BaseModel, ABC, Generic[T]):
         return cast("T", self.plugin.from_dict(self._model_type, **values))
 
     @classmethod
-    def _from_value_mapping(cls, mapping: dict[str, Any]) -> Factory[T]:
+    def _from_value_mapping(cls: type[FactoryT], mapping: dict[str, Any]) -> FactoryT:
         for dto_key, original_key in cls._config.field_mapping.items():
             value = mapping.pop(original_key)
             mapping[dto_key] = value
         return cls(**mapping)
 
     @classmethod
-    def from_model_instance(cls: type[Factory[T]], model_instance: T) -> Factory[T]:
+    def from_model_instance(cls: type[FactoryT], model_instance: T) -> FactoryT:
         """Create an instance of ``dto.Factory`` from an instance of the model.
 
         Args:
@@ -125,7 +127,7 @@ class Factory(BaseModel, ABC, Generic[T]):
         )
 
     @classmethod
-    async def from_model_instance_async(cls, model_instance: T) -> Factory[T]:
+    async def from_model_instance_async(cls: type[FactoryT], model_instance: T) -> FactoryT:
         """Given an instance of the source model, create an instance of the given DTO subclass asynchronously.
 
         Args:

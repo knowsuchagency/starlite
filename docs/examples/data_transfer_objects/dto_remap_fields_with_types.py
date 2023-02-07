@@ -1,6 +1,11 @@
+from __future__ import annotations
+
+from typing import Annotated
+
 from pydantic import BaseModel
 
-from starlite.dto import DTOFactory
+from starlite import dto
+from starlite.dto.pydantic import PydanticFactory
 
 
 class MyClass(BaseModel):
@@ -8,6 +13,14 @@ class MyClass(BaseModel):
     second: int
 
 
-dto_factory = DTOFactory()
-
-MyClassDTO = dto_factory("MyClassDTO", MyClass, field_mapping={"first": "third", "second": ("fourth", float)})
+MyClassDTO = PydanticFactory[
+    Annotated[
+        MyClass,
+        dto.Config(
+            field_mapping={
+                "first": "third",
+                "second": ("fourth", float),
+            }
+        ),
+    ]
+]

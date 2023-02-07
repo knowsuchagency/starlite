@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from pydantic import BaseModel
 
-from starlite.dto import DTOFactory
+from starlite.dto.pydantic import PydanticFactory
 
 
 class MyClass(BaseModel):
@@ -8,6 +10,5 @@ class MyClass(BaseModel):
     second: int
 
 
-dto_factory = DTOFactory()
-
-MyClassDTO = dto_factory("MyClassDTO", MyClass, field_definitions={"third": (str, ...)})
+class MyClassDTO(PydanticFactory[MyClass]):
+    third: str

@@ -1,12 +1,10 @@
+from __future__ import annotations
+
 from sqlalchemy import Column, Float, Integer, String
 from sqlalchemy.orm import Mapped, declarative_base
 
 from starlite import post
-from starlite.plugins.sql_alchemy import SQLAlchemyPlugin
-from starlite.dto import DTOFactory
-
-
-dto_factory = DTOFactory(plugins=[SQLAlchemyPlugin()])
+from starlite.dto.sqlalchemy import SQLAlchemyFactory
 
 Base = declarative_base()
 
@@ -19,9 +17,9 @@ class Company(Base):  # pyright: ignore
     worth: Mapped[float] = Column(Float)  # pyright: ignore
 
 
-CompanyDTO = dto_factory("CompanyDTO", Company)
+CompanyDTO = SQLAlchemyFactory[Company]
 
 
 @post()
-def create_company(data: CompanyDTO) -> Company:  # type: ignore
-    return data.to_model_instance()  # type: ignore
+def create_company(data: CompanyDTO) -> Company:
+    return data.to_model_instance()

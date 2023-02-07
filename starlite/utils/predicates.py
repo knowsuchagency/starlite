@@ -81,7 +81,7 @@ def is_not_awaitable(value: Awaitable[T] | T) -> TypeGuard[T]:
     Returns:
         Boolean indicating whether value is an awaitable object.
     """
-    return isawaitable(value)
+    return not isawaitable(value)
 
 
 def is_class_and_subclass(value: Any, t_type: Type[T]) -> TypeGuard[Type[T]]:
