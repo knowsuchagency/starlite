@@ -261,3 +261,19 @@ def is_typed_dict(value: Any) -> "TypeGuard[TypedDictClass]":
         ``True`` if instance or type of ``TypedDict``.
     """
     return is_typeddict(value)
+
+
+def is_type_or_instance_of(value: Any, type_: Type[T]) -> "TypeGuard[Type[T] | T]":
+    """Is ``value`` either a type or instance of ``type_``?
+
+    Args:
+        value: value to be tested.
+        type_: type for test.
+
+    Returns:
+        Bool indicating whether ``value`` is either a type of ``type_`` or an instance of ``type_``.
+    """
+    if is_class_and_subclass(value, t_type=type_):
+        return True
+
+    return isinstance(value, type_)

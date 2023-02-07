@@ -23,6 +23,7 @@ from .predicates import (
     is_mapping,
     is_not_awaitable,
     is_optional_union,
+    is_type_or_instance_of,
     is_typed_dict,
     is_union,
 )
@@ -84,6 +85,7 @@ __all__ = (
     "is_dataclass_class_or_instance",
     "is_not_awaitable",
     "is_optional_union",
+    "is_type_or_instance_of",
     "is_typed_dict",
     "is_union",
     "is_mapping",
