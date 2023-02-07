@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from pydantic import BaseConfig, BaseModel, DirectoryPath, constr, validator
 
-from starlite.handlers import asgi
+from starlite.handlers.asgi import asgi
 from starlite.static_files.base import StaticFiles
 from starlite.types import ExceptionHandlersMap, Guard
 from starlite.utils import normalize_path

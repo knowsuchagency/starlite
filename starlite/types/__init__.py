@@ -81,7 +81,7 @@ from .internal_types import (
     RouteHandlerType,
 )
 from .partial import Partial
-from .protocols import Logger
+from .protocols import Logger, IsDataclass
 
 __all__ = (
     "ASGIApp",
@@ -118,6 +118,7 @@ __all__ = (
     "HTTPSendMessage",
     "HTTPServerPushEvent",
     "InitialStateType",
+    "IsDataclass",
     "LifeSpanHandler",
     "LifeSpanHookHandler",
     "LifeSpanReceive",

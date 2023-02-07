@@ -2,10 +2,11 @@ import sys
 from collections import defaultdict, deque
 from collections.abc import Iterable as CollectionsIterable
 from dataclasses import is_dataclass
-from inspect import isclass
+from inspect import isawaitable, isclass
 from typing import (
     TYPE_CHECKING,
     Any,
+    Awaitable,
     DefaultDict,
     Deque,
     Dict,
@@ -57,6 +58,30 @@ T = TypeVar("T")
 def _get_origin(annotation: Any) -> Any:
     origin = get_origin(annotation)
     return origin if origin not in (Annotated, Required, NotRequired) else get_args(annotation)[0]
+
+
+def is_awaitable(value: Awaitable[T] | T) -> TypeGuard[Awaitable[T]]:
+    """A type narrowing version of ``inspect.isawaitable``.
+
+    Args:
+        value: value to be checked.
+
+    Returns:
+        Boolean indicating whether value is an awaitable object.
+    """
+    return isawaitable(value)
+
+
+def is_not_awaitable(value: Awaitable[T] | T) -> TypeGuard[T]:
+    """An inverse type narrowing version of ``inspect.isawaitable``.
+
+    Args:
+        value: value to be checked.
+
+    Returns:
+        Boolean indicating whether value is an awaitable object.
+    """
+    return isawaitable(value)
 
 
 def is_class_and_subclass(value: Any, t_type: Type[T]) -> TypeGuard[Type[T]]:

@@ -24,11 +24,11 @@ from pydantic import validate_arguments
 from pydantic_openapi_schema.v3_1_0 import SecurityRequirement
 from typing_extensions import get_args
 
+from starlite import dto
 from starlite.background_tasks import BackgroundTask, BackgroundTasks
 from starlite.constants import REDIRECT_STATUS_CODES
 from starlite.datastructures import CacheControlHeader, Cookie, ETag, ResponseHeader
 from starlite.di import Provide
-from starlite.dto import DTO
 from starlite.enums import HttpMethod, MediaType
 from starlite.exceptions import (
     HTTPException,
@@ -192,8 +192,8 @@ def _create_data_handler(
     ]
     cookie_headers = [cookie.to_encoded_header() for cookie in cookies if not cookie.documentation_only]
     raw_headers = [*normalized_headers, *cookie_headers]
-    is_dto_annotation = is_class_and_subclass(return_annotation, DTO)
-    is_dto_iterable_annotation = annotation_is_iterable_of_type(return_annotation, DTO)
+    is_dto_annotation = is_class_and_subclass(return_annotation, dto.Factory)
+    is_dto_iterable_annotation = annotation_is_iterable_of_type(return_annotation, dto.Factory)
 
     async def create_response(data: Any) -> "ASGIApp":
         response = response_class(
@@ -214,11 +214,11 @@ def _create_data_handler(
         if isawaitable(data):
             data = await data
 
-        if is_dto_annotation and not isinstance(data, DTO):
+        if is_dto_annotation and not isinstance(data, dto.Factory):
             data = return_annotation(**data) if isinstance(data, dict) else return_annotation.from_model_instance(data)
 
-        elif is_dto_iterable_annotation and data and not isinstance(data[0], DTO):  # pyright: ignore
-            dto_type = cast("Type[DTO]", get_args(return_annotation)[0])
+        elif is_dto_iterable_annotation and data and not isinstance(data[0], dto.Factory):  # pyright: ignore
+            dto_type = cast("Type[dto.Factory]", get_args(return_annotation)[0])
             data = [
                 dto_type(**datum) if isinstance(datum, dict) else dto_type.from_model_instance(datum) for datum in data
             ]

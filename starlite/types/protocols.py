@@ -1,4 +1,6 @@
-from typing import Any, Protocol
+from __future__ import annotations
+
+from typing import Any, Protocol, ClassVar
 
 
 class Logger(Protocol):  # pragma: no cover
@@ -76,3 +78,10 @@ class Logger(Protocol):  # pragma: no cover
              *args: Any args.
              **kwargs: Any kwargs.
         """
+
+
+class IsDataclass(Protocol):
+    __dataclass_fields__: ClassVar[dict]
+
+    def __init__(self, **kwargs: Any) -> None:
+        ...
