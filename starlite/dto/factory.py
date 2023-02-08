@@ -44,7 +44,10 @@ class Factory(BaseModel, Generic[T]):
         if get_origin(item) is Annotated:
             item, config = get_args(item)
             item = cast("type[T]", item)
-            config = cast("DTOConfig", config)
+            if not isinstance(config, DTOConfig):
+                raise ImproperlyConfiguredException(
+                    f"Metadata passed via `Annotated` must be an instance of `dto.Config`, not `{config}`"
+                )
         else:
             config = cls._config
 
