@@ -88,11 +88,14 @@ class PluginProtocol(Protocol[ModelT]):  # pragma: no cover
         """
         return False
 
-    def to_pydantic_model_class(self, model_class: Type[ModelT], **kwargs: Any) -> Type["BaseModel"]:
+    def to_pydantic_model_class(
+        self, model_class: Type[ModelT], localns: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> Type["BaseModel"]:
         """Given a model_class supported by the plugin, convert it to a subclass of the pydantic BaseModel.
 
         Args:
             model_class: A model class supported by the plugin.
+            localns: used for forward ref resolution.
             **kwargs: Any additional kwargs.
 
         Returns:

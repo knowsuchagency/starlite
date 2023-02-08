@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
+from typing_extensions import get_type_hints
+
 from starlite.types import IsDataclass
 from starlite.utils.model import convert_dataclass_to_model
 from starlite.utils.predicates import is_dataclass_class_or_instance
@@ -30,16 +32,22 @@ class DataclassPlugin(PluginProtocol[IsDataclass]):
         """
         return is_dataclass_class_or_instance(value)
 
-    def to_pydantic_model_class(self, model_class: type[IsDataclass], **kwargs: Any) -> type[BaseModel]:
+    def to_pydantic_model_class(
+        self, model_class: type[IsDataclass], localns: dict[str, Any] | None = None, **kwargs: Any
+    ) -> type[BaseModel]:
         """Produce a pydantic model from ``model_class``.
 
         Args:
             model_class: the dataclass model type.
-            **kwargs: not used in this implementation
+            localns: used for forward ref resolution.
+            **kwargs: not used in this implementation.
 
         Returns:
             A pydantic model to represent the dataclass model.
         """
+
+        model_class.__annotations__ = get_type_hints(model_class, globals(), localns, include_extras=True)
+
         return convert_dataclass_to_model(model_class)
 
     def from_pydantic_model_instance(

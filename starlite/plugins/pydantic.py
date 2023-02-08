@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel
+from pydantic import BaseModel, create_model
 
 from starlite.utils.predicates import is_type_or_instance_of
 
@@ -27,17 +27,28 @@ class PydanticPlugin(PluginProtocol[BaseModel]):
         """
         return is_type_or_instance_of(value, BaseModel)
 
-    def to_pydantic_model_class(self, model_class: type[BaseModel], **kwargs: Any) -> type[BaseModel]:
+    def to_pydantic_model_class(
+        self, model_class: type[BaseModel], localns: dict[str, Any] | None = None, **kwargs: Any
+    ) -> type[BaseModel]:
         """Produce a pydantic model from ``model_class``.
 
         Args:
             model_class: the pydantic model type.
+            localns: used for forward ref resolution.
             **kwargs: not used in this implementation
 
         Returns:
             A pydantic model to represent the pydantic model.
         """
-        return model_class
+        model_class.update_forward_refs(localns=localns)
+        return create_model(
+            model_class.__name__,
+            __config__=None,
+            __base__=model_class,
+            __module__=model_class.__module__,
+            __validators__={},
+            __cls_kwargs__={},
+        )
 
     def from_pydantic_model_instance(
         self, model_class: type[BaseModel], pydantic_model_instance: BaseModel

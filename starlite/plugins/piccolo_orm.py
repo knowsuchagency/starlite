@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict, Type
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type
 
 from starlite.exceptions import MissingDependencyException
 from starlite.plugins.base import PluginProtocol
@@ -20,7 +20,9 @@ class PiccoloORMPlugin(PluginProtocol[Table]):
     _models_map: Dict[Type[Table], Type["BaseModel"]] = {}
     _data_models_map: Dict[Type[Table], Type["BaseModel"]] = {}
 
-    def to_pydantic_model_class(self, model_class: Type[Table], **kwargs: Any) -> Type["BaseModel"]:
+    def to_pydantic_model_class(
+        self, model_class: Type[Table], localns: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> Type["BaseModel"]:
         """Given a piccolo model_class instance, convert it to a subclass of the piccolo "BaseModel".
 
         Since incoming request body's cannot and should not include values for

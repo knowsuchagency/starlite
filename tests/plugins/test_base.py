@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict, Type
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type
 
 import pytest
 from pydantic import BaseModel
@@ -26,7 +26,9 @@ class APydanticModel(BaseModel):
 
 
 class APlugin(PluginProtocol[AModel]):
-    def to_pydantic_model_class(self, model_class: Type[AModel], **kwargs: Any) -> Type[BaseModel]:
+    def to_pydantic_model_class(
+        self, model_class: Type[AModel], localns: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> Type[BaseModel]:
         assert model_class is AModel
         return APydanticModel
 

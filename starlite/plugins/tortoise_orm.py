@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
 from pydantic_factories.utils import is_pydantic_model
 from tortoise.fields import ReverseRelation
@@ -53,7 +53,9 @@ class TortoiseORMPlugin(PluginProtocol[Model]):
                     pydantic_model.__fields__[field_name].allow_none = True
         return pydantic_model
 
-    def to_pydantic_model_class(self, model_class: Type[Model], **kwargs: Any) -> Type[PydanticModel]:
+    def to_pydantic_model_class(
+        self, model_class: Type[Model], localns: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> Type[PydanticModel]:
         """Given a tortoise model_class instance, convert it to a subclass of the tortoise PydanticModel.
 
         Since incoming request body's cannot and should not include values for

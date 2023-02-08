@@ -349,11 +349,14 @@ class SQLAlchemyPlugin(PluginProtocol[DeclarativeMeta]):
             "Unsupported 'model_class' kwarg: only subclasses of the SQLAlchemy ``DeclarativeMeta`` are supported"
         )
 
-    def to_pydantic_model_class(self, model_class: Type[DeclarativeMeta], **kwargs: Any) -> "Type[BaseModel]":
+    def to_pydantic_model_class(
+        self, model_class: Type[DeclarativeMeta], localns: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> "Type[BaseModel]":
         """Generate a pydantic model for a given SQLAlchemy declarative table and any nested relations.
 
         Args:
             model_class: An SQLAlchemy declarative class instance.
+            localns: used for forward ref resolution.
             **kwargs: Kwargs to pass to the model.
 
         Returns:

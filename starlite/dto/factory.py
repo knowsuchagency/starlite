@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from abc import ABC
+import importlib
+import typing
 from typing import Any, ClassVar, Dict, Generic, TypeVar, cast
 
+import typing_extensions
 from pydantic import BaseConfig, BaseModel, create_model
 from typing_extensions import Annotated, TypeAlias, get_args, get_origin
 
@@ -19,7 +21,7 @@ FactoryT = TypeVar("FactoryT", bound="Factory")
 ReverseFieldMappingsType: TypeAlias = "Dict[str, str]"
 
 
-class Factory(BaseModel, ABC, Generic[T]):
+class Factory(BaseModel, Generic[T]):
     """Create :class:`DTO` type.
 
     Pydantic models, :class:`TypedDict <typing.TypedDict>` and dataclasses are natively supported. Other types supported
@@ -46,10 +48,13 @@ class Factory(BaseModel, ABC, Generic[T]):
         else:
             config = cls._config
 
+        item_module = importlib.import_module(item.__module__)
         field_definitions = create_field_definitions(
             config.exclude,
             config.field_mapping,
-            cls.plugin.to_pydantic_model_class(item).__fields__,
+            cls.plugin.to_pydantic_model_class(
+                item, localns={**vars(typing), **vars(typing_extensions), **vars(item_module)}
+            ).__fields__,
         )
 
         reverse_field_mappings = {
