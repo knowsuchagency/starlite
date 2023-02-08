@@ -17,7 +17,6 @@ repos:
     hooks:
       - id: pyupgrade
         args: ["--py38-plus"]
-        exclude: "tests/dto/__init__|starlite/dto/factory"
   - repo: https://github.com/hadialqattan/pycln
     rev: v2.1.3
     hooks:

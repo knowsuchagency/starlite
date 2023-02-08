@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import List
+
+    from typing_extensions import TypeAlias
+
+ListInt: TypeAlias = "List[int]"
 
 
 @dataclass
 class DC:
     a: float = 1.01
     b: str = "string"
-    c: List[int] = field(default_factory=lambda: [0, 1, 2, 3])
+    c: ListInt = field(default_factory=lambda: [0, 1, 2, 3])
 
 
 @dataclass
