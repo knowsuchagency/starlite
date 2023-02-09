@@ -83,7 +83,7 @@ from .internal_types import (
     RouteHandlerType,
 )
 from .partial import Partial
-from .protocols import IsDataclass, Logger
+from .protocols import DataclassProtocol, Logger
 
 __all__ = (
     "ASGIApp",
@@ -100,6 +100,7 @@ __all__ = (
     "BeforeRequestHookHandler",
     "CacheKeyBuilder",
     "ControllerRouterHandler",
+    "DataclassProtocol",
     "Dependencies",
     "Empty",
     "EmptyType",
@@ -118,7 +119,6 @@ __all__ = (
     "HTTPSendMessage",
     "HTTPServerPushEvent",
     "InitialStateType",
-    "IsDataclass",
     "LifeSpanHandler",
     "LifeSpanHookHandler",
     "LifeSpanReceive",

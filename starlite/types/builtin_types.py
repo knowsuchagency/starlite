@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
     from typing_extensions import TypeAlias, TypedDict
 
-    from .protocols import IsDataclass
+    from starlite.types.protocols import DataclassProtocol
 
 
 __all__ = [
