@@ -5,8 +5,8 @@ from typing import TypeVar
 from pydantic import BaseModel
 from sqlalchemy.orm import DeclarativeMeta
 
-from starlite.types.protocols import IsDataclass
+from starlite.types.protocols import DataclassProtocol
 
-DataclassT = TypeVar("DataclassT", bound=IsDataclass)
+DataclassT = TypeVar("DataclassT", bound=DataclassProtocol)
 PydanticT = TypeVar("PydanticT", bound=BaseModel)
 SQLAlchemyT = TypeVar("SQLAlchemyT", bound=DeclarativeMeta)

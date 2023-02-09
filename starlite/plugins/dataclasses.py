@@ -3,25 +3,24 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
+from pydantic import BaseModel
 from typing_extensions import get_type_hints
 
-from starlite.types import IsDataclass
+from starlite.types import DataclassProtocol
 from starlite.utils.model import convert_dataclass_to_model
 from starlite.utils.predicates import is_dataclass_class_or_instance
 
-from . import PluginProtocol
+from . import SerializationPluginProtocol
 
 if TYPE_CHECKING:
     from typing import Any, TypeGuard  # noqa:TC004
 
-    from pydantic import BaseModel
 
-
-class DataclassPlugin(PluginProtocol[IsDataclass]):
+class DataclassPlugin(SerializationPluginProtocol[DataclassProtocol, BaseModel]):
     """Plugin for dataclass object models."""
 
     @staticmethod
-    def is_plugin_supported_type(value: Any) -> TypeGuard[IsDataclass]:
+    def is_plugin_supported_type(value: Any) -> TypeGuard[DataclassProtocol]:
         """Is ``value`` a type managed by the plugin?
 
         Args:
@@ -32,8 +31,8 @@ class DataclassPlugin(PluginProtocol[IsDataclass]):
         """
         return is_dataclass_class_or_instance(value)
 
-    def to_pydantic_model_class(
-        self, model_class: type[IsDataclass], localns: dict[str, Any] | None = None, **kwargs: Any
+    def to_data_container_class(
+        self, model_class: type[DataclassProtocol], localns: dict[str, Any] | None = None, **kwargs: Any
     ) -> type[BaseModel]:
         """Produce a pydantic model from ``model_class``.
 
@@ -50,9 +49,9 @@ class DataclassPlugin(PluginProtocol[IsDataclass]):
 
         return convert_dataclass_to_model(model_class)
 
-    def from_pydantic_model_instance(
-        self, model_class: type[IsDataclass], pydantic_model_instance: BaseModel
-    ) -> IsDataclass:
+    def from_data_container_instance(
+        self, model_class: type[DataclassProtocol], pydantic_model_instance: BaseModel
+    ) -> DataclassProtocol:
         """Create an instance of the dataclass model type from a pydantic model instance.
 
         Args:
@@ -64,7 +63,7 @@ class DataclassPlugin(PluginProtocol[IsDataclass]):
         """
         return model_class(**pydantic_model_instance.dict())
 
-    def to_dict(self, model_instance: IsDataclass) -> dict[str, Any]:
+    def to_dict(self, model_instance: DataclassProtocol) -> dict[str, Any]:
         """Convert ``model_instance`` to a dict representation.
 
         Args:
@@ -75,7 +74,7 @@ class DataclassPlugin(PluginProtocol[IsDataclass]):
         """
         return asdict(model_instance)
 
-    def from_dict(self, model_class: type[IsDataclass], **kwargs: Any) -> IsDataclass:
+    def from_dict(self, model_class: type[DataclassProtocol], **kwargs: Any) -> DataclassProtocol:
         """Create an instance of the model dataclass from ``kwargs``.
 
         Args:

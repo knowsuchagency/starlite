@@ -6,13 +6,13 @@ from pydantic import BaseModel, create_model
 
 from starlite.utils.predicates import is_type_or_instance_of
 
-from . import PluginProtocol
+from . import SerializationPluginProtocol
 
 if TYPE_CHECKING:
     from typing import Any, TypeGuard  # noqa:TC004
 
 
-class PydanticPlugin(PluginProtocol[BaseModel]):
+class PydanticPlugin(SerializationPluginProtocol[BaseModel, BaseModel]):
     """Plugin for pydantic object models."""
 
     @staticmethod
@@ -27,7 +27,7 @@ class PydanticPlugin(PluginProtocol[BaseModel]):
         """
         return is_type_or_instance_of(value, BaseModel)
 
-    def to_pydantic_model_class(
+    def to_data_container_class(
         self, model_class: type[BaseModel], localns: dict[str, Any] | None = None, **kwargs: Any
     ) -> type[BaseModel]:
         """Produce a pydantic model from ``model_class``.
@@ -50,7 +50,7 @@ class PydanticPlugin(PluginProtocol[BaseModel]):
             __cls_kwargs__={},
         )
 
-    def from_pydantic_model_instance(
+    def from_data_container_instance(
         self, model_class: type[BaseModel], pydantic_model_instance: BaseModel
     ) -> BaseModel:
         """Create an instance of the pydantic model type from a pydantic model instance.

@@ -55,7 +55,7 @@ class Factory(BaseModel, Generic[T]):
         field_definitions = create_field_definitions(
             config.exclude,
             config.field_mapping,
-            cls.plugin.to_pydantic_model_class(
+            cls.plugin.to_data_container_class(
                 item, localns={**vars(typing), **vars(typing_extensions), **vars(item_module)}
             ).__fields__,
         )
