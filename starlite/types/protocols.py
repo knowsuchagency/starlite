@@ -1,4 +1,4 @@
-from typing import Any, Dict, Protocol, runtime_checkable
+from typing import Any, ClassVar, Dict, Protocol, runtime_checkable
 
 
 class Logger(Protocol):  # pragma: no cover
@@ -82,4 +82,4 @@ class Logger(Protocol):  # pragma: no cover
 class DataclassProtocol(Protocol):
     """Protocol for instance checking dataclasses"""
 
-    __dataclass_fields__: Dict[str, Any]
+    __dataclass_fields__: ClassVar[Dict[str, Any]]

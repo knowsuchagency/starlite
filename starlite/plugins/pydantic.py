@@ -51,18 +51,18 @@ class PydanticPlugin(SerializationPluginProtocol[BaseModel, BaseModel]):
         )
 
     def from_data_container_instance(
-        self, model_class: type[BaseModel], pydantic_model_instance: BaseModel
+        self, model_class: type[BaseModel], data_container_instance: BaseModel
     ) -> BaseModel:
         """Create an instance of the pydantic model type from a pydantic model instance.
 
         Args:
             model_class: pydantic model type.
-            pydantic_model_instance: DTO instance that represents model data.
+            data_container_instance: DTO instance that represents model data.
 
         Returns:
             Instance of the model type, populated with DTO data.
         """
-        return model_class(**pydantic_model_instance.dict())
+        return model_class(**data_container_instance.dict())
 
     def to_dict(self, model_instance: BaseModel) -> dict[str, Any]:
         """Convert ``model_instance`` to a dict representation.

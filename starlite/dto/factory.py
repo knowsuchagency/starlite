@@ -9,7 +9,7 @@ from pydantic import BaseConfig, BaseModel, create_model
 from typing_extensions import Annotated, TypeAlias, get_args, get_origin
 
 from starlite.exceptions import ImproperlyConfiguredException
-from starlite.plugins import PluginProtocol
+from starlite.plugins import SerializationPluginProtocol
 from starlite.utils import is_awaitable, is_not_awaitable
 
 from .config import Config as DTOConfig
@@ -31,7 +31,7 @@ class Factory(BaseModel, Generic[T]):
     class Config(BaseConfig):
         orm_mode = True
 
-    plugin: ClassVar[PluginProtocol]
+    plugin: ClassVar[SerializationPluginProtocol]
 
     _model_type: ClassVar[Any]
     _config = DTOConfig()

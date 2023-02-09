@@ -17,9 +17,9 @@ __all__ = [
     "TypedDictClass",
 ]
 
-DataclassClass: "TypeAlias" = "Type[IsDataclass]"
+DataclassClass: "TypeAlias" = "Type[DataclassProtocol]"
 
-DataclassClassOrInstance: "TypeAlias" = "Union[DataclassClass, IsDataclass]"
+DataclassClassOrInstance: "TypeAlias" = "Union[DataclassClass, DataclassProtocol]"
 
 NoneType = type(None)
 

@@ -50,18 +50,18 @@ class DataclassPlugin(SerializationPluginProtocol[DataclassProtocol, BaseModel])
         return convert_dataclass_to_model(model_class)
 
     def from_data_container_instance(
-        self, model_class: type[DataclassProtocol], pydantic_model_instance: BaseModel
+        self, model_class: type[DataclassProtocol], data_container_instance: BaseModel
     ) -> DataclassProtocol:
         """Create an instance of the dataclass model type from a pydantic model instance.
 
         Args:
             model_class: dataclass model type.
-            pydantic_model_instance: DTO instance that represents model data.
+            data_container_instance: DTO instance that represents model data.
 
         Returns:
             Instance of the model type, populated with DTO data.
         """
-        return model_class(**pydantic_model_instance.dict())
+        return model_class(**data_container_instance.dict())
 
     def to_dict(self, model_instance: DataclassProtocol) -> dict[str, Any]:
         """Convert ``model_instance`` to a dict representation.
