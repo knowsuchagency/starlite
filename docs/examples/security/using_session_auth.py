@@ -11,7 +11,8 @@ from starlite import (
     post,
 )
 from starlite.config.openapi import OpenAPIConfig
-from starlite.middleware.session.memory_backend import MemoryBackendConfig
+from starlite.middleware.session.server_side import ServerSideSessionConfig
+from starlite.storage.memory_backend import MemoryStorageBackend
 from starlite.security.session_auth import SessionAuth
 from starlite.exceptions import NotAuthorizedException
 
@@ -123,7 +124,7 @@ session_auth = SessionAuth[User](
     retrieve_user_handler=retrieve_user_handler,
     # we must pass a config for a session backend.
     # all session backends are supported
-    session_backend_config=MemoryBackendConfig(),
+    session_backend_config=ServerSideSessionConfig(storage=MemoryStorageBackend()),
     # exclude any URLs that should not have authentication.
     # We exclude the documentation URLs, signup and login.
     exclude=["/login", "/signup", "/schema"],
