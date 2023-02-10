@@ -41,7 +41,7 @@ class TortoiseORMPlugin(SerializationPluginProtocol[Model, PydanticModel], OpenA
     _data_models_map: "dict[type[Model], type[PydanticModel]]" = {}
 
     @staticmethod
-    def container_instance_to_dict(container_instance: "PydanticModel") -> dict[str, "Any"]:
+    def container_instance_to_dict(container_instance: "PydanticModel") -> "dict[str, Any]":
         """Convert ``container_instance`` to dict.
 
         Args
@@ -73,7 +73,7 @@ class TortoiseORMPlugin(SerializationPluginProtocol[Model, PydanticModel], OpenA
         container_type: "type[PydanticModel]",
         buffer: bytes,
         media_type: "RequestEncodingType | str",
-    ) -> list[PydanticModel]:
+    ) -> "list[PydanticModel]":
         """Parse an array of ``container_type`` from raw bytes.
 
         Args

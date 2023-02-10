@@ -1,34 +1,19 @@
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    List,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Protocol,
-    Set,
-    Tuple,
-    Type,
-    TypedDict,
-    TypeVar,
-    Union,
-    runtime_checkable,
-)
+from typing import TYPE_CHECKING, NamedTuple, Protocol, TypeVar, runtime_checkable
 
-from pydantic import BaseModel
 from typing_extensions import TypeGuard, get_args
 
-from starlite.types.protocols import DataclassProtocol
-
 if TYPE_CHECKING:
+    from typing import Any, Mapping, TypedDict
+
+    from pydantic import BaseModel
     from pydantic_openapi_schema.v3_1_0 import Schema
 
     from starlite.app import Starlite
     from starlite.enums import RequestEncodingType
+    from starlite.types.protocols import DataclassProtocol
 
 ModelT = TypeVar("ModelT")
-DataContainerT = TypeVar("DataContainerT", bound=Union[BaseModel, DataclassProtocol, TypedDict])  # type: ignore[valid-type]
+DataContainerT = TypeVar("DataContainerT", bound="BaseModel | DataclassProtocol | TypedDict")  # type: ignore[valid-type]
 
 
 @runtime_checkable
@@ -115,7 +100,7 @@ class SerializationPluginProtocol(Protocol[ModelT, DataContainerT]):
         container_type: "type[DataContainerT]",
         buffer: bytes,
         media_type: "RequestEncodingType | str",
-    ) -> list[DataContainerT]:
+    ) -> "list[DataContainerT]":
         """Parse an instance of ``container_type`` from raw bytes.
 
         Args
@@ -141,7 +126,7 @@ class SerializationPluginProtocol(Protocol[ModelT, DataContainerT]):
         raise NotImplementedError
 
     @staticmethod
-    def is_plugin_supported_type(value: Any) -> TypeGuard[ModelT]:
+    def is_plugin_supported_type(value: "Any") -> "TypeGuard[ModelT]":
         """Given a value of indeterminate type, determine if this value is supported by the plugin.
 
         Args:
@@ -152,7 +137,7 @@ class SerializationPluginProtocol(Protocol[ModelT, DataContainerT]):
         """
         raise NotImplementedError()
 
-    def to_dict(self, model_instance: ModelT) -> Dict[str, Any]:
+    def to_dict(self, model_instance: ModelT) -> "dict[str, Any]":
         """Given an instance of a model supported by the plugin, return a dictionary of serializable values.
 
         Args:
@@ -166,7 +151,7 @@ class SerializationPluginProtocol(Protocol[ModelT, DataContainerT]):
         """
         raise NotImplementedError()
 
-    def from_dict(self, model_class: Type[ModelT], **kwargs: Any) -> ModelT:
+    def from_dict(self, model_class: "type[ModelT]", **kwargs: "Any") -> ModelT:
         """Given a class supported by this plugin and a dict of values, create an instance of the class.
 
         Args:
@@ -180,10 +165,10 @@ class SerializationPluginProtocol(Protocol[ModelT, DataContainerT]):
 
     def from_bytes(
         self,
-        model_class: Type[ModelT],
-        transfer_class: Type[DataContainerT],
+        model_class: "type[ModelT]",
+        transfer_class: "type[DataContainerT]",
         buffer: bytes,
-        media_type: "Union[RequestEncodingType | str]",
+        media_type: "RequestEncodingType | str",
     ) -> ModelT:
         """Decode raw request data, validate it via ``transfer_class``,and return instance of ``model_class``.
 
@@ -205,13 +190,13 @@ class SerializationPluginProtocol(Protocol[ModelT, DataContainerT]):
 
     def to_data_container_class(
         self,
-        model_class: Type[ModelT],
-        exclude: Optional[Set[str]] = None,
-        field_mappings: Optional[Mapping[str, Union[str, tuple[str, Any]]]] = None,
-        fields: Optional[Dict[str, Tuple[Any, Any]]] = None,
-        localns: dict[str, Any] | None = None,
-        **kwargs: Any
-    ) -> Type[DataContainerT]:
+        model_class: "type[ModelT]",
+        exclude: "set[str] | None" = None,
+        field_mappings: "Mapping[str, str | tuple[str, Any]] | None" = None,
+        fields: "dict[str, tuple[Any, Any]] | None" = None,
+        localns: "dict[str, Any] | None" = None,
+        **kwargs: "Any"
+    ) -> "type[DataContainerT]":
         """Create a data container class corresponding to the given model class.
 
         :param model_class: The model class that serves as a basis.
@@ -225,7 +210,7 @@ class SerializationPluginProtocol(Protocol[ModelT, DataContainerT]):
         raise NotImplementedError()
 
     def from_data_container_instance(
-        self, model_class: Type[ModelT], data_container_instance: DataContainerT
+        self, model_class: "type[ModelT]", data_container_instance: DataContainerT
     ) -> ModelT:
         """Create a model instance from the given data container instance.
 
@@ -243,7 +228,7 @@ class OpenAPISchemaPluginProtocol(Protocol[ModelT]):
     __slots__ = ()
 
     @staticmethod
-    def is_plugin_supported_type(value: Any) -> TypeGuard[ModelT]:
+    def is_plugin_supported_type(value: "Any") -> "TypeGuard[ModelT]":
         """Given a value of indeterminate type, determine if this value is supported by the plugin.
 
         Args:
@@ -254,7 +239,7 @@ class OpenAPISchemaPluginProtocol(Protocol[ModelT]):
         """
         raise NotImplementedError()
 
-    def to_openapi_schema(self, model_class: Type[ModelT]) -> "Schema":
+    def to_openapi_schema(self, model_class: "type[ModelT]") -> "Schema":
         """Given a model class, transform it into an OpenAPI schema class.
 
         :param model_class: A model class.
@@ -264,8 +249,8 @@ class OpenAPISchemaPluginProtocol(Protocol[ModelT]):
 
 
 def get_plugin_for_value(
-    value: Any, plugins: List[SerializationPluginProtocol]
-) -> Optional[SerializationPluginProtocol]:
+    value: "Any", plugins: "list[SerializationPluginProtocol]"
+) -> "SerializationPluginProtocol | None":
     """Return a plugin for handling the given value, if any plugin supports it.
 
     Args:
@@ -289,12 +274,12 @@ def get_plugin_for_value(
 class PluginMapping(NamedTuple):
     """Named tuple, mapping plugins > models."""
 
-    plugin: SerializationPluginProtocol[Any, Any]
-    model_class: Any
+    plugin: "SerializationPluginProtocol[Any, Any]"
+    model_class: "Any"
 
     def get_model_instance_for_value(
-        self, value: Union[DataContainerT, List[DataContainerT], Tuple[DataContainerT, ...]]
-    ) -> Any:
+        self, value: "DataContainerT | list[DataContainerT] | tuple[DataContainerT, ...]"
+    ) -> "Any":
         """Given a value generated by plugin, return an instance of the original class.
 
         Can also accept a list or tuple of values.

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlalchemy import Column, Float, Integer, String
 from sqlalchemy.orm import Mapped, declarative_base
 from typing_extensions import Annotated
