@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 from uuid import uuid4
 
 from starlette.status import (
@@ -15,6 +15,9 @@ from tests import User, UserFactory
 
 user_instance = UserFactory.build()
 
+if TYPE_CHECKING:
+    from starlite.middleware.session.server_side import ServerSideSessionConfig
+
 
 def retrieve_user_handler(session_data: Dict[str, Any], _: ASGIConnection) -> Optional[User]:
     if session_data["id"] == str(user_instance.id):
@@ -22,7 +25,7 @@ def retrieve_user_handler(session_data: Dict[str, Any], _: ASGIConnection) -> Op
     return None
 
 
-def test_authentication(session_backend_config_memory) -> None:
+def test_authentication(session_backend_config_memory: "ServerSideSessionConfig") -> None:
     session_auth = SessionAuth[Any](
         retrieve_user_handler=retrieve_user_handler,
         exclude=["login"],
@@ -67,7 +70,7 @@ def test_authentication(session_backend_config_memory) -> None:
         assert response.status_code == HTTP_401_UNAUTHORIZED, response.json()
 
 
-def test_session_auth_openapi(session_backend_config_memory) -> None:
+def test_session_auth_openapi(session_backend_config_memory: "ServerSideSessionConfig") -> None:
     session_auth = SessionAuth[Any](
         retrieve_user_handler=retrieve_user_handler,
         session_backend_config=session_backend_config_memory,
