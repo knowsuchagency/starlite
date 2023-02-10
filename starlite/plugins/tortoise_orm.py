@@ -1,6 +1,6 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Type
+from typing import TYPE_CHECKING, TypeVar
 
-from pydantic import BaseModel
+import anyio
 from pydantic_factories.utils import is_pydantic_model
 from pydantic_openapi_schema.utils.utils import OpenAPI310PydanticSchema
 from tortoise.fields import ReverseRelation
@@ -11,6 +11,7 @@ from starlite.plugins.base import (
     OpenAPISchemaPluginProtocol,
     SerializationPluginProtocol,
 )
+from starlite.utils.serialization import decode_json
 
 try:
     from tortoise import Model, ModelMeta  # type: ignore[attr-defined]
@@ -22,18 +23,71 @@ except ImportError as e:
     raise MissingDependencyException("tortoise-orm is not installed") from e
 
 if TYPE_CHECKING:
+    from typing import Any, Mapping
+
     from pydantic_openapi_schema.v3_1_0 import Schema
     from typing_extensions import TypeGuard
 
+    from starlite.enums import RequestEncodingType
 
-class TortoiseORMPlugin(SerializationPluginProtocol[Model, BaseModel], OpenAPISchemaPluginProtocol[Model]):
+
+TortoiseModelT = TypeVar("TortoiseModelT", bound="Model")
+
+
+class TortoiseORMPlugin(SerializationPluginProtocol[Model, PydanticModel], OpenAPISchemaPluginProtocol[Model]):
     """Support (de)serialization and OpenAPI generation for Tortoise ORMtypes."""
 
-    _models_map: Dict[Type[Model], Type[PydanticModel]] = {}
-    _data_models_map: Dict[Type[Model], Type[PydanticModel]] = {}
+    _models_map: "dict[type[Model], type[PydanticModel]]" = {}
+    _data_models_map: "dict[type[Model], type[PydanticModel]]" = {}
 
     @staticmethod
-    def _create_pydantic_model(model_class: Type[Model], **kwargs: Any) -> "Type[PydanticModel]":
+    def container_instance_to_dict(container_instance: "PydanticModel") -> dict[str, "Any"]:
+        """Convert ``container_instance`` to dict.
+
+        Args
+            container_instance: the container instance
+
+        Returns
+            dict representation of container instance
+        """
+        return container_instance.dict()
+
+    @staticmethod
+    def parse_container_type_from_raw(
+        container_type: "type[PydanticModel]", buffer: bytes, media_type: "RequestEncodingType | str"
+    ) -> PydanticModel:
+        """Parse an instance of ``container_type`` from raw bytes.
+
+        Args
+            container_type: a container model type
+            buffer: bytes to be parsed into instance
+            media_type: format of the raw data
+
+        Returns
+            Instance of ``container_type``.
+        """
+        return decode_json(buffer, container_type)
+
+    @staticmethod
+    def parse_container_type_array_from_raw(
+        container_type: "type[PydanticModel]",
+        buffer: bytes,
+        media_type: "RequestEncodingType | str",
+    ) -> list[PydanticModel]:
+        """Parse an array of ``container_type`` from raw bytes.
+
+        Args
+            container_type: a container model type
+            buffer: bytes to be parsed into instance
+            media_type: format of the raw data
+
+        Returns
+            List of ``container_type`` instances.
+        """
+        return decode_json(buffer, list[container_type])  # type:ignore[valid-type]
+
+    @staticmethod
+    def _create_pydantic_model(model_class: "type[TortoiseModelT]", **kwargs: "Any") -> "type[PydanticModel]":
         """Take a tortoise model_class instance and convert it to a subclass of the tortoise PydanticModel.
 
         This fixes some issues with the result of the tortoise model creator.
@@ -58,7 +112,15 @@ class TortoiseORMPlugin(SerializationPluginProtocol[Model, BaseModel], OpenAPISc
                     pydantic_model.__fields__[field_name].allow_none = True
         return pydantic_model
 
-    def to_data_container_class(self, model_class: Type[Model], **kwargs: Any) -> Type[PydanticModel]:
+    def to_data_container_class(
+        self,
+        model_class: "type[TortoiseModelT]",
+        exclude: "set[str] | None" = None,
+        field_mappings: "Mapping[str, str | tuple[str, Any]] | None" = None,
+        fields: "dict[str, tuple[Any, Any]] | None" = None,
+        localns: "dict[str, Any] | None" = None,
+        **kwargs: "Any",
+    ) -> "type[PydanticModel]":
         """Given a tortoise model_class instance, convert it to a subclass of the tortoise PydanticModel.
 
         Since incoming request body's cannot and should not include values for
@@ -66,15 +128,24 @@ class TortoiseORMPlugin(SerializationPluginProtocol[Model, BaseModel], OpenAPISc
         - the first is a regular pydantic model, and the other is for the "data" kwarg only, which is further sanitized.
 
         This function uses memoization to ensure we don't recompute unnecessarily.
+
+        :param model_class: The model class that serves as a basis.
+        :param exclude: do not include fields of these names in the model.
+        :param field_mappings: to rename, and re-type fields.
+        :param fields: additional fields to add to the container model.
+        :param localns: additional namespace for forward ref resolution.
+        :param kwargs: Any kwargs.
+        :return: The generated data container class.
         """
         parameter_name = kwargs.pop("parameter_name", None)
         if parameter_name == "data":
             if model_class not in self._data_models_map:
-                fields_to_exclude: List[str] = [
+                fields_to_exclude: "set[str]" = {
                     field_name
                     for field_name, tortoise_model_field in model_class._meta.fields_map.items()
                     if isinstance(tortoise_model_field, (RelationalField, ReverseRelation)) or tortoise_model_field.pk
-                ]
+                }
+                fields_to_exclude.update(exclude or set())
                 kwargs.update(
                     exclude=tuple(fields_to_exclude), exclude_readonly=True, name=f"{model_class.__name__}RequestBody"
                 )
@@ -86,11 +157,13 @@ class TortoiseORMPlugin(SerializationPluginProtocol[Model, BaseModel], OpenAPISc
         return self._models_map[model_class]
 
     @staticmethod
-    def is_plugin_supported_type(value: Any) -> "TypeGuard[Model]":
+    def is_plugin_supported_type(value: "Any") -> "TypeGuard[Model]":
         """Given a value of indeterminate type, determine if this value is supported by the plugin."""
         return isinstance(value, (Model, ModelMeta))
 
-    def from_data_container_instance(self, model_class: Type[Model], data_container_instance: "BaseModel") -> Model:
+    def from_data_container_instance(
+        self, model_class: "type[TortoiseModelT]", data_container_instance: "PydanticModel"
+    ) -> TortoiseModelT:
         """Given an instance of a pydantic model created using the plugin's ``to_data_container_class``, return an
         instance of the class from which that pydantic model has been created.
 
@@ -98,17 +171,18 @@ class TortoiseORMPlugin(SerializationPluginProtocol[Model, BaseModel], OpenAPISc
         """
         return model_class().update_from_dict(data_container_instance.dict())
 
-    async def to_dict(self, model_instance: Model) -> Dict[str, Any]:  # pylint: disable=invalid-overridden-method
+    def to_dict(self, model_instance: TortoiseModelT) -> "dict[str, Any]":
         """Given an instance of a model supported by the plugin, return a dictionary of serializable values."""
         pydantic_model_class = self.to_data_container_class(type(model_instance))
-        data = await pydantic_model_class.from_tortoise_orm(model_instance)
+        with anyio.start_blocking_portal() as portal:
+            data = portal.call(pydantic_model_class.from_tortoise_orm, model_instance)
         return data.dict()
 
-    def from_dict(self, model_class: Type[Model], **kwargs: Any) -> Model:  # pragma: no cover
+    def from_dict(self, model_class: "type[TortoiseModelT]", **kwargs: "Any") -> TortoiseModelT:  # pragma: no cover
         """Given a class supported by this plugin and a dict of values, create an instance of the class."""
         return model_class().update_from_dict(**kwargs)
 
-    def to_openapi_schema(self, model_class: Type[Model]) -> "Schema":
+    def to_openapi_schema(self, model_class: "type[TortoiseModelT]") -> "Schema":
         """Given a model class, transform it into an OpenAPI schema class.
 
         :param model_class: A table class.

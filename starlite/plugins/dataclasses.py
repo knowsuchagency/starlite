@@ -3,20 +3,19 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
+import pydantic.dataclasses
 from pydantic import BaseModel
-from typing_extensions import get_type_hints
 
 from starlite.types import DataclassProtocol
-from starlite.utils.model import convert_dataclass_to_model
 from starlite.utils.predicates import is_dataclass_class_or_instance
 
-from . import SerializationPluginProtocol
+from .pydantic import FromPydantic
 
 if TYPE_CHECKING:
-    from typing import Any, TypeGuard  # noqa:TC004
+    from typing import Any, Mapping, TypeGuard  # noqa:TC004
 
 
-class DataclassPlugin(SerializationPluginProtocol[DataclassProtocol, BaseModel]):
+class DataclassPlugin(FromPydantic[DataclassProtocol]):
     """Plugin for dataclass object models."""
 
     @staticmethod
@@ -32,22 +31,28 @@ class DataclassPlugin(SerializationPluginProtocol[DataclassProtocol, BaseModel])
         return is_dataclass_class_or_instance(value)
 
     def to_data_container_class(
-        self, model_class: type[DataclassProtocol], localns: dict[str, Any] | None = None, **kwargs: Any
+        self,
+        model_class: type[DataclassProtocol],
+        exclude: set[str] | None = None,
+        field_mappings: Mapping[str, str | tuple[str, Any]] | None = None,
+        fields: dict[str, tuple[Any, Any]] | None = None,
+        localns: dict[str, Any] | None = None,
+        **kwargs: Any,
     ) -> type[BaseModel]:
         """Produce a pydantic model from ``model_class``.
 
-        Args:
-            model_class: the dataclass model type.
-            localns: used for forward ref resolution.
-            **kwargs: not used in this implementation.
-
-        Returns:
-            A pydantic model to represent the dataclass model.
+        :param model_class: The model class that serves as a basis.
+        :param exclude: do not include fields of these names in the model.
+        :param field_mappings: to rename, and re-type fields.
+        :param fields: additional fields to add to the container model.
+        :param localns: additional namespace for forward ref resolution.
+        :param kwargs: Any kwargs.
+        :return: The generated data container class.
         """
 
-        model_class.__annotations__ = get_type_hints(model_class, globals(), localns, include_extras=True)
-
-        return convert_dataclass_to_model(model_class)
+        pydantic_model = pydantic.dataclasses.dataclass(model_class).__pydantic_model__
+        pydantic_model.update_forward_refs(localns=localns)
+        return pydantic_model
 
     def from_data_container_instance(
         self, model_class: type[DataclassProtocol], data_container_instance: BaseModel

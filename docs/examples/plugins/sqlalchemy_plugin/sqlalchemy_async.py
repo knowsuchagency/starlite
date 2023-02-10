@@ -38,7 +38,7 @@ async def on_startup() -> None:
 @post(path="/companies")
 async def create_company(data: CreateCompanyDTO, async_session: AsyncSession) -> Company:
     """Create a new company and return it."""
-    company: Company = data.to_model_instance()
+    company: Company = data.to_model()
     async_session.add(company)
     await async_session.commit()
     return company

@@ -38,7 +38,7 @@ def create_company(
     db_session: Session,
 ) -> Company:
     """Create a new company and return it."""
-    company: Company = data.to_model_instance()
+    company: Company = data.to_model()
     db_session.add(company)
     db_session.commit()
     return company

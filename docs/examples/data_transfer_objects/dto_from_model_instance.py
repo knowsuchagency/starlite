@@ -20,4 +20,4 @@ CompanyDTO = SQLAlchemyFactory[Company]
 
 company_instance = Company(id=1, name="My Firm", worth=1000000.0)
 
-dto_instance = CompanyDTO.from_model_instance(company_instance)
+dto_instance = CompanyDTO.from_model(company_instance)

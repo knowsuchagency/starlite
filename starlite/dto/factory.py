@@ -2,117 +2,122 @@ from __future__ import annotations
 
 import importlib
 import typing
-from typing import Any, ClassVar, Dict, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Generic, TypeVar, cast
 
 import typing_extensions
-from pydantic import BaseConfig, BaseModel, create_model
-from typing_extensions import Annotated, TypeAlias, get_args, get_origin
+from typing_extensions import Annotated, get_args, get_origin
 
+from starlite.enums import RequestEncodingType
 from starlite.exceptions import ImproperlyConfiguredException
 from starlite.plugins import SerializationPluginProtocol
-from starlite.utils import is_awaitable, is_not_awaitable
+from starlite.utils.serialization import encode_json
 
 from .config import Config as DTOConfig
-from .utils import create_field_definitions
 
-T = TypeVar("T")
+if TYPE_CHECKING:
+    from typing import Any
+
+ModelT = TypeVar("ModelT")
 FactoryT = TypeVar("FactoryT", bound="Factory")
 
-ReverseFieldMappingsType: TypeAlias = "Dict[str, str]"
 
-
-class Factory(BaseModel, Generic[T]):
+class Factory(Generic[ModelT]):
     """Create :class:`DTO` type.
 
-    Pydantic models, :class:`TypedDict <typing.TypedDict>` and dataclasses are natively supported. Other types supported
-    via plugins.
+    Subclass Factory and define `plugin_type`.
+
+    Type narrow the factory down to a specific model type, that must be compatible with the `plugin_type`.
+
+    Examples
+        class DataclassFactory(Factory[ModelT]):
+            plugin_type = DataclassPlugin
+
+        @dataclass
+        class MyDC:
+            ...
+
+        DTO = DataclassFactory[MyDC]
     """
 
-    class Config(BaseConfig):
-        orm_mode = True
+    plugin_type: type[SerializationPluginProtocol]
 
-    plugin: ClassVar[SerializationPluginProtocol]
+    _plugin_instance: SerializationPluginProtocol
+    _model_type: type[ModelT]
+    _transfer_type: Any
+    _config: DTOConfig
+    _reverse_field_mappings: dict[str, str]
 
-    _model_type: ClassVar[Any]
-    _config = DTOConfig()
-    _reverse_field_mappings: ClassVar[ReverseFieldMappingsType]
+    def __init__(self, transfer_instance: Any) -> None:
+        """Create an instance of the factory type.
 
-    def __class_getitem__(cls, item: TypeVar | type[T]) -> type[Factory[T]]:
+        Args:
+            transfer_instance: instance of the container type that is supported by ``plugin_type``.
+        """
+        self.transfer_instance = transfer_instance
+
+    def __class_getitem__(cls, item: TypeVar | type[ModelT]) -> type[Factory[ModelT]]:
         if isinstance(item, TypeVar):
             return cls
 
+        if not getattr(cls, "plugin_type", None):
+            raise ImproperlyConfiguredException("You must subclass `Factory` and define `plugin_type`.")
+
+        plugin_instance = getattr(cls, "_plugin_instance", cls.plugin_type())
+        reverse_field_mappings = getattr(cls, "_reverse_field_mappings", {})
+
         if get_origin(item) is Annotated:
             item, config = get_args(item)
-            item = cast("type[T]", item)
+            item = cast("type[ModelT]", item)
             if not isinstance(config, DTOConfig):
                 raise ImproperlyConfiguredException(
                     f"Metadata passed via `Annotated` must be an instance of `dto.Config`, not `{config}`"
                 )
+            reverse_field_mappings.update(
+                {value[0] if not isinstance(value, str) else value: key for key, value in config.field_mapping.items()}
+            )
         else:
-            config = cls._config
+            config = cls._config if getattr(cls, "_config", None) is not None else DTOConfig()
 
-        item_module = importlib.import_module(item.__module__)
-        field_definitions = create_field_definitions(
-            config.exclude,
-            config.field_mapping,
-            cls.plugin.to_data_container_class(
-                item, localns={**vars(typing), **vars(typing_extensions), **vars(item_module)}
-            ).__fields__,
-        )
-
-        reverse_field_mappings = {
-            value[0] if not isinstance(value, str) else value: key for key, value in config.field_mapping.items()
+        cls_kwargs = {
+            "_plugin_instance": plugin_instance,
+            "_config": config,
+            "_reverse_field_mappings": reverse_field_mappings,
         }
 
-        return create_model(
-            f"{cls.__name__}[{item.__name__}]",
-            __config__=None,
-            __base__=cls,
-            __module__=str(getattr(item, "__module__", __name__)),
-            __validators__={},
-            __cls_kwargs__={"model_type": item, "config": config, "reverse_field_mappings": reverse_field_mappings},
-            **field_definitions,
+        item_module = importlib.import_module(item.__module__)
+        cls_kwargs["_transfer_type"] = plugin_instance.to_data_container_class(
+            item,
+            exclude=config.exclude,
+            field_mappings=config.field_mapping,
+            fields=config.fields,
+            localns={**vars(typing), **vars(typing_extensions), **vars(item_module)},
         )
+        cls_kwargs["_model_type"] = item
 
-    def __init_subclass__(  # pylint: disable=arguments-differ
-        cls,
-        model_type: type[T] | None = None,
-        config: DTOConfig | None = None,
-        reverse_field_mappings: dict[str, str] | None = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init_subclass__(**kwargs)
-        if config is not None:
-            cls._config = config
-        if model_type is not None:
-            cls._model_type = model_type
-        if reverse_field_mappings is not None:
-            cls._reverse_field_mappings = reverse_field_mappings
+        return type(f"Factory[{item.__name__}, {cls.plugin_type.__name__}]", (cls,), cls_kwargs)
 
-    def to_model_instance(self) -> T:
+    def to_model(self) -> ModelT:
         """Convert self into instance of the model type.
 
         Returns:
             Instance of model type, populated from ``self``.
         """
-        values = self.dict()
+        values = self._plugin_instance.container_instance_to_dict(self.transfer_instance)
 
         for dto_key, original_key in self._reverse_field_mappings.items():
-            value = values.pop(dto_key)
-            values[original_key] = value
+            values[original_key] = values.pop(dto_key)
 
-        return cast("T", self.plugin.from_dict(self._model_type, **values))
+        return self._plugin_instance.from_dict(self._model_type, **values)  # type:ignore[no-any-return]
 
     @classmethod
-    def _from_value_mapping(cls: type[FactoryT], mapping: dict[str, Any]) -> FactoryT:
+    def _apply_field_mappings(cls, mapping: dict[str, Any]) -> dict[str, Any]:
         for dto_key, original_key in cls._config.field_mapping.items():
-            value = mapping.pop(original_key)
-            mapping[dto_key] = value
-        return cls(**mapping)
+            mapping[dto_key] = mapping.pop(original_key)
+        return mapping
 
     @classmethod
-    def from_model_instance(cls: type[FactoryT], model_instance: T) -> FactoryT:
-        """Create an instance of ``dto.Factory`` from an instance of the model.
+    def from_model(cls: type[FactoryT], model_instance: ModelT) -> FactoryT:
+        """Create an instance of ``dto.Factory`` from an instance of ``ModelT``.
 
         Args:
             model_instance: instance of the model
@@ -120,29 +125,34 @@ class Factory(BaseModel, Generic[T]):
         Returns:
             Instance of ``dto.Factory``
         """
-        result = cls.plugin.to_dict(model_instance=model_instance)
-        if is_not_awaitable(result):
-            return cls._from_value_mapping(result)
-        raise ImproperlyConfiguredException(
-            f"plugin {type(cls.plugin).__name__} to_dict method is async. "
-            f"Use 'DTO.from_model_instance_async instead'",
+        return cls.from_buffer(encode_json(cls._plugin_instance.to_dict(model_instance)), RequestEncodingType.JSON)
+
+    @classmethod
+    def from_buffer(cls: type[FactoryT], buffer: bytes, media_type: RequestEncodingType | str) -> FactoryT:
+        """Create an instance of the DTO type from raw buffer.
+
+        Args:
+            buffer: The raw data extracted from the request
+            media_type: Format of the raw data
+        """
+        return cls(
+            transfer_instance=cls._plugin_instance.parse_container_type_from_raw(
+                container_type=cls._transfer_type, buffer=buffer, media_type=media_type
+            )
         )
 
     @classmethod
-    async def from_model_instance_async(cls: type[FactoryT], model_instance: T) -> FactoryT:
-        """Given an instance of the source model, create an instance of the given DTO subclass asynchronously.
+    def array_from_buffer(cls: type[FactoryT], buffer: bytes, media_type: RequestEncodingType | str) -> list[FactoryT]:
+        """Create an array of DTO types from raw buffer.
 
         Args:
-            model_instance (T): instance of source model.
-
-        Returns:
-            Instance of the :class:`DTO` subclass.
+            buffer: The raw data extracted from the request
+            media_type: Format of the raw data
         """
-        maybe_awaitable = cls.plugin.to_dict(model_instance)
-        mapping: dict[str, Any]
-        if is_awaitable(maybe_awaitable):
-            mapping = await maybe_awaitable
-        else:
-            # else branch of type guard doesn't seem to reverse-narrow the type
-            mapping = maybe_awaitable  # type:ignore[assignment]
-        return cls._from_value_mapping(mapping)
+        return [
+            cls(
+                transfer_instance=cls._plugin_instance.parse_container_type_array_from_raw(
+                    cls._transfer_type, buffer=buffer, media_type=media_type
+                )
+            )
+        ]

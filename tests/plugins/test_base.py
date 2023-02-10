@@ -1,17 +1,16 @@
-from typing import TYPE_CHECKING, Any, Dict, Type
+from typing import TYPE_CHECKING
 
 import pytest
 from pydantic import BaseModel
 
 from starlite import MediaType, Starlite, State, get
-from starlite.plugins.base import (
-    InitPluginProtocol,
-    PluginMapping,
-    SerializationPluginProtocol,
-)
+from starlite.plugins.base import InitPluginProtocol, PluginMapping
+from starlite.plugins.pydantic import FromPydantic
 from starlite.testing import create_test_client
 
 if TYPE_CHECKING:
+    from typing import Any, Mapping
+
     from typing_extensions import TypeGuard
 
 
@@ -29,24 +28,32 @@ class APydanticModel(BaseModel):
     name: str
 
 
-class APlugin(SerializationPluginProtocol[AModel, BaseModel]):
-    def to_data_container_class(self, model_class: Type[AModel], **kwargs: Any) -> Type[BaseModel]:
+class APlugin(FromPydantic[AModel]):
+    def to_data_container_class(
+        self,
+        model_class: "type[AModel]",
+        exclude: "set[str] | None" = None,
+        field_mappings: "Mapping[str, str | tuple[str, Any]] | None" = None,
+        fields: "dict[str, tuple[Any, Any]] | None" = None,
+        localns: "dict[str, Any] | None" = None,
+        **kwargs: "Any",
+    ) -> "type[BaseModel]":
         assert model_class is AModel
         return APydanticModel
 
     @staticmethod
-    def is_plugin_supported_type(value: Any) -> "TypeGuard[AModel]":
+    def is_plugin_supported_type(value: "Any") -> "TypeGuard[AModel]":
         return value is AModel
 
-    def from_data_container_instance(self, model_class: Type[AModel], data_container_instance: BaseModel) -> AModel:
+    def from_data_container_instance(self, model_class: "type[AModel]", data_container_instance: BaseModel) -> AModel:
         assert model_class is AModel
         assert isinstance(data_container_instance, APydanticModel)
         return model_class(**data_container_instance.dict())
 
-    def to_dict(self, model_instance: AModel) -> Dict[str, Any]:
+    def to_dict(self, model_instance: AModel) -> "dict[str, Any]":
         return dict(model_instance)  # type: ignore
 
-    def from_dict(self, model_class: Type[AModel], **kwargs: Any) -> AModel:
+    def from_dict(self, model_class: "type[AModel]", **kwargs: "Any") -> AModel:
         assert model_class is AModel
         return model_class(**kwargs)
 
@@ -59,7 +66,7 @@ class APlugin(SerializationPluginProtocol[AModel, BaseModel]):
         [(APydanticModel(name="1"), APydanticModel(name="2")), [AModel(name="1"), AModel(name="2")]],
     ],
 )
-def test_plugin_mapping_value_to_model_instance(input_value: Any, output_value: Any) -> None:
+def test_plugin_mapping_value_to_model_instance(input_value: "Any", output_value: "Any") -> None:
     mapping = PluginMapping(plugin=APlugin(), model_class=AModel)
     assert mapping.get_model_instance_for_value(input_value) == output_value
 

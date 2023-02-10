@@ -156,14 +156,14 @@ to create an instance from an existing instance of the model from which the DTO 
 
 In the above, ``dto_instance`` is a validated pydantic model instance.
 
-DTO.to_model_instance
+DTO.to_model
 ^^^^^^^^^^^^^^^^^^^^^
 
 When you have an instance of a :class:`DTO <starlite.dto.DTO>` model, you can convert it into a model instance using the
-:meth:`to_model_instance <starlite.dto.DTO.to_model_instance>` method:
+:meth:`to_model <starlite.dto.DTO.to_model>` method:
 
 .. literalinclude:: /examples/data_transfer_objects/dto_to_model_instance.py
-    :caption: DTO.to_model_instance()
+    :caption: DTO.to_model()
     :language: python
 
 

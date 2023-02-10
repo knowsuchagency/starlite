@@ -64,7 +64,7 @@ Example:
 
     dto = ModelDTO.parse_obj({})
     assert dto._model_type is Model
-    assert isinstance(dto.to_model_instance(), Model)
+    assert isinstance(dto.to_model(), Model)
 """
 from .config import Config
 from .factory import Factory

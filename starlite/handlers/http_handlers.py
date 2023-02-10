@@ -22,7 +22,6 @@ from typing import (
 
 from pydantic import validate_arguments
 from pydantic_openapi_schema.v3_1_0 import SecurityRequirement
-from typing_extensions import get_args
 
 from starlite import dto
 from starlite.background_tasks import BackgroundTask, BackgroundTasks
@@ -214,16 +213,13 @@ def _create_data_handler(
         if isawaitable(data):
             data = await data
 
-        if is_dto_annotation and not isinstance(data, dto.Factory):
-            data = return_annotation(**data) if isinstance(data, dict) else return_annotation.from_model_instance(data)
+        if is_dto_annotation:
+            data = data.transfer_instance
 
-        elif is_dto_iterable_annotation and data and not isinstance(data[0], dto.Factory):  # pyright: ignore
-            dto_type = cast("Type[dto.Factory]", get_args(return_annotation)[0])
-            data = [
-                dto_type(**datum) if isinstance(datum, dict) else dto_type.from_model_instance(datum) for datum in data
-            ]
+        if is_dto_iterable_annotation:
+            data = [d.transfer_instance for d in data]
 
-        elif plugins and not (is_dto_annotation or is_dto_iterable_annotation):
+        if plugins and not (is_dto_annotation or is_dto_iterable_annotation):
             data = await _normalize_response_data(data=data, plugins=plugins)
 
         return await create_response(data=data)

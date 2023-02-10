@@ -6,6 +6,7 @@ from pydantic import BaseConfig, BaseModel, ValidationError
 from pydantic.fields import ModelField
 from typing_extensions import get_args, get_origin
 
+from starlite import dto
 from starlite.connection import ASGIConnection, Request
 from starlite.constants import UNDEFINED_SENTINELS
 from starlite.enums import ScopeType
@@ -15,6 +16,7 @@ from starlite.plugins import PluginMapping
 from starlite.types import Empty
 from starlite.utils import is_any, is_optional_union, is_union, make_non_optional_union
 from starlite.utils.predicates import (
+    is_class_and_subclass,
     is_generic,
     is_mapping,
     is_non_string_iterable,
@@ -138,6 +140,17 @@ class SignatureField:
             return self.kwarg_model.required
 
         return not (self.is_optional or self.is_any) and (self.is_empty or self.default_value is None)
+
+    @property
+    def is_dto_field(self) -> bool:
+        """Is this signature field typed as a dto.Factory type."""
+        if self.is_non_string_iterable:
+            if not (tp_args := get_args(self.field_type)):
+                return False
+            field_type = tp_args[0]
+        else:
+            field_type = self.field_type
+        return is_class_and_subclass(field_type, dto.Factory)
 
     @classmethod
     def create(

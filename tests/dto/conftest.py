@@ -9,22 +9,14 @@ from starlite.dto.dataclasses import DataclassFactory
 from tests.dto import CompositeDC
 
 if TYPE_CHECKING:
-    from typing import Any
-
     from starlite import dto
     from tests.dto.types import CreateDTOType, DCFactoryType
 
 
 @pytest.fixture
-def raw_composite() -> dict[str, Any]:
+def raw_composite() -> bytes:
     """Raw representation of our composite data model defined in ``tests.dto``"""
-    return {
-        "d": {
-            "a": 1.01,
-            "b": "string",
-            "c": [0, 1, 2, 3],
-        }
-    }
+    return b'{"d":{"a": 1.01,"b":"string","c":[0, 1, 2, 3]}}'
 
 
 @pytest.fixture

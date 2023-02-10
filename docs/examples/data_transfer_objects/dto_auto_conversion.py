@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from sqlalchemy import Column, Float, Integer, String
 from sqlalchemy.orm import Mapped, declarative_base
 from typing_extensions import Annotated
@@ -35,7 +33,7 @@ companies: list[Company] = [
 @get("/{company_id: int}")
 def get_company(company_id: int) -> ReadCompanyDTO:
     try:
-        return ReadCompanyDTO.from_model_instance(companies[company_id - 1])
+        return ReadCompanyDTO.from_model(companies[company_id - 1])
     except IndexError:
         raise HTTPException(
             detail="Company not found",
@@ -45,10 +43,11 @@ def get_company(company_id: int) -> ReadCompanyDTO:
 
 @get()
 def get_companies() -> list[ReadCompanyDTO]:
-    return [ReadCompanyDTO.from_model_instance(company) for company in companies]
+    return [ReadCompanyDTO.from_model(company) for company in companies]
 
 
 app = Starlite(
     route_handlers=[get_company, get_companies],
     plugins=[sqlalchemy_plugin],
+    openapi_config=None,
 )

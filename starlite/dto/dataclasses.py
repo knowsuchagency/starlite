@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Generic
 
 from starlite.plugins.dataclasses import DataclassPlugin
 
@@ -10,7 +10,7 @@ from .types import DataclassT
 __all__ = ("DataclassFactory",)
 
 
-class DataclassFactory(Factory[DataclassT]):
+class DataclassFactory(Factory[DataclassT], Generic[DataclassT]):
     """DTO Factory for dataclass models."""
 
-    plugin: ClassVar[DataclassPlugin] = DataclassPlugin()
+    plugin_type = DataclassPlugin

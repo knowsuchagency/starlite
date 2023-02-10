@@ -1,12 +1,13 @@
 from typing import (
     TYPE_CHECKING,
     Any,
-    Awaitable,
     Dict,
     List,
+    Mapping,
     NamedTuple,
     Optional,
     Protocol,
+    Set,
     Tuple,
     Type,
     TypedDict,
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from pydantic_openapi_schema.v3_1_0 import Schema
 
     from starlite.app import Starlite
+    from starlite.enums import RequestEncodingType
 
 ModelT = TypeVar("ModelT")
 DataContainerT = TypeVar("DataContainerT", bound=Union[BaseModel, DataclassProtocol, TypedDict])  # type: ignore[valid-type]
@@ -91,6 +93,54 @@ class SerializationPluginProtocol(Protocol[ModelT, DataContainerT]):
     __slots__ = ()
 
     @staticmethod
+    def parse_container_type_from_raw(
+        container_type: "type[DataContainerT]",
+        buffer: bytes,
+        media_type: "RequestEncodingType | str",
+    ) -> DataContainerT:
+        """Parse an instance of ``container_type`` from raw bytes.
+
+        Args
+            container_type: a container model type
+            buffer: bytes to be parsed into instance
+            media_type: format of the raw data
+
+        Returns
+            Instance of ``container_type``.
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    def parse_container_type_array_from_raw(
+        container_type: "type[DataContainerT]",
+        buffer: bytes,
+        media_type: "RequestEncodingType | str",
+    ) -> list[DataContainerT]:
+        """Parse an instance of ``container_type`` from raw bytes.
+
+        Args
+            container_type: a container model type
+            buffer: bytes to be parsed into instance
+            media_type: format of the raw data
+
+        Returns
+            List of ``container_type`` instances.
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    def container_instance_to_dict(container_instance: DataContainerT) -> "dict[str, Any]":
+        """Convert ``container_instance`` to dict.
+
+        Args
+            container_instance: the container instance
+
+        Returns
+            dict representation of container instance
+        """
+        raise NotImplementedError
+
+    @staticmethod
     def is_plugin_supported_type(value: Any) -> TypeGuard[ModelT]:
         """Given a value of indeterminate type, determine if this value is supported by the plugin.
 
@@ -102,7 +152,7 @@ class SerializationPluginProtocol(Protocol[ModelT, DataContainerT]):
         """
         raise NotImplementedError()
 
-    def to_dict(self, model_instance: ModelT) -> Union[Dict[str, Any], Awaitable[Dict[str, Any]]]:
+    def to_dict(self, model_instance: ModelT) -> Dict[str, Any]:
         """Given an instance of a model supported by the plugin, return a dictionary of serializable values.
 
         Args:
@@ -128,10 +178,47 @@ class SerializationPluginProtocol(Protocol[ModelT, DataContainerT]):
         """
         raise NotImplementedError()
 
-    def to_data_container_class(self, model_class: Type[ModelT], **kwargs: Any) -> Type[DataContainerT]:
+    def from_bytes(
+        self,
+        model_class: Type[ModelT],
+        transfer_class: Type[DataContainerT],
+        buffer: bytes,
+        media_type: "Union[RequestEncodingType | str]",
+    ) -> ModelT:
+        """Decode raw request data, validate it via ``transfer_class``,and return instance of ``model_class``.
+
+        Args
+            model_class: subtype of ``ModelT``.
+            transfer_class: subtype of ``DataContainerT``
+            buffer: encoded bytes, from the request
+            media_type: format of the encoded data
+
+        Returns:
+            Instance of ``model_class``.
+
+        Raises:
+            ValidationException: if the encoded data cannot be parsed into ``item``.
+
+        """
+        transfer_instance = self.parse_container_type_from_raw(transfer_class, buffer, media_type)
+        return self.from_data_container_instance(model_class, transfer_instance)
+
+    def to_data_container_class(
+        self,
+        model_class: Type[ModelT],
+        exclude: Optional[Set[str]] = None,
+        field_mappings: Optional[Mapping[str, Union[str, tuple[str, Any]]]] = None,
+        fields: Optional[Dict[str, Tuple[Any, Any]]] = None,
+        localns: dict[str, Any] | None = None,
+        **kwargs: Any
+    ) -> Type[DataContainerT]:
         """Create a data container class corresponding to the given model class.
 
         :param model_class: The model class that serves as a basis.
+        :param exclude: do not include fields of these names in the model.
+        :param field_mappings: to rename, and re-type fields.
+        :param fields: additional fields to add to the container model.
+        :param localns: additional namespace for forward ref resolution.
         :param kwargs: Any kwargs.
         :return: The generated data container class.
         """

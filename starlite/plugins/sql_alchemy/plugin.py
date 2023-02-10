@@ -8,6 +8,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Mapping,
     Optional,
     Tuple,
     Type,
@@ -15,7 +16,7 @@ from typing import (
 )
 from uuid import UUID
 
-from pydantic import BaseModel, conint, constr, create_model
+from pydantic import BaseConfig, BaseModel, conint, constr, create_model
 from pydantic_factories import ModelFactory
 from pydantic_openapi_schema.utils.utils import OpenAPI310PydanticSchema
 
@@ -24,8 +25,10 @@ from starlite.exceptions import (
     ImproperlyConfiguredException,
     MissingDependencyException,
 )
-from starlite.plugins.base import InitPluginProtocol, SerializationPluginProtocol
+from starlite.plugins.base import InitPluginProtocol
+from starlite.plugins.pydantic import FromPydantic
 
+from ..utils import remap_field
 from .types import SQLAlchemyBinaryType
 
 try:
@@ -47,7 +50,7 @@ if TYPE_CHECKING:
     from starlite.plugins.sql_alchemy.config import SQLAlchemyConfig
 
 
-class SQLAlchemyPlugin(InitPluginProtocol, SerializationPluginProtocol[DeclarativeMeta, BaseModel]):
+class SQLAlchemyPlugin(InitPluginProtocol, FromPydantic[DeclarativeMeta]):
     """A Plugin for SQLAlchemy."""
 
     __slots__ = ("_model_namespace_map", "_config")
@@ -351,54 +354,58 @@ class SQLAlchemyPlugin(InitPluginProtocol, SerializationPluginProtocol[Declarati
             "Unsupported 'model_class' kwarg: only subclasses of the SQLAlchemy ``DeclarativeMeta`` are supported"
         )
 
-    def to_data_container_class(self, model_class: Type[DeclarativeMeta], **kwargs: Any) -> "Type[BaseModel]":
-        """Generate a pydantic model for a given SQLAlchemy declarative table and any nested relations.
+    def to_data_container_class(
+        self,
+        model_class: Type[DeclarativeMeta],
+        exclude: set[str] | None = None,
+        field_mappings: Mapping[str, str | tuple[str, Any]] | None = None,
+        fields: Optional[Dict[str, Tuple[Any, Any]]] = None,
+        localns: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> "Type[BaseModel]":
+        """Create a data container class corresponding to the given model class.
 
-        Args:
-            model_class: An SQLAlchemy declarative class instance.
-            **kwargs: Kwargs to pass to the model.
-
-        Returns:
-            A pydantic model instance.
+        :param model_class: The model class that serves as a basis.
+        :param exclude: do not include fields of these names in the model.
+        :param field_mappings: to rename, and re-type fields.
+        :param fields: additional fields to add to the container model.
+        :param localns: used for forward-ref resolution.
+        :param kwargs: Any kwargs.
+        :return: The generated data container class.
         """
-
         mapper = self.parse_model(model_class=model_class)
-        model_name = mapper.class_.__qualname__
+        model_name: str = mapper.class_.__qualname__
+        exclude = exclude or set()
+        field_mappings = field_mappings or {}
+        fields = fields or {}
         if model_name not in self._model_namespace_map:
-            field_definitions: Dict[str, Any] = {}
-            for name, column in mapper.columns.items():
+            for field_name, column in mapper.columns.items():
+                if field_name in exclude:
+                    continue
                 if column.default and type(column.default.arg) in ModelFactory.get_provider_map():
-                    field_definitions[name] = (self.get_pydantic_type(column.type), column.default.arg)
+                    field_type = (self.get_pydantic_type(column.type), column.default.arg)
                 elif not column.nullable:
-                    field_definitions[name] = (self.get_pydantic_type(column.type), ...)
+                    field_type = (self.get_pydantic_type(column.type), ...)
                 else:
-                    field_definitions[name] = (self.get_pydantic_type(column.type), None)
-            related_entity_classes: List[Type[DeclarativeMeta]] = []
-            if mapper.relationships:
-                # list of references to other entities, not the self entity
-                # to avoid duplication of pydantic models, we are using forward refs
-                # see: https://pydantic-docs.helpmanual.io/usage/postponed_annotations/
-                for name, relationship_property in mapper.relationships.items():
-                    if not relationship_property.back_populates and not relationship_property.backref:
-                        related_entity_class = relationship_property.mapper.class_
-                        related_model_name = related_entity_class.__qualname__
-                        if relationship_property.uselist:
-                            field_definitions[name] = (Optional[List[related_model_name]], None)  # type: ignore
-                        else:
-                            field_definitions[name] = (Optional[related_model_name], None)
-                        # if the names are not identical, these are different SQLAlchemy entities
-                        if related_model_name != model_name and related_model_name not in self._model_namespace_map:
-                            related_entity_classes.append(related_entity_class)
-                    # we are treating back-references as any to avoid infinite recursion
-                    else:
-                        field_definitions[name] = (Any, None)
+                    field_type = (self.get_pydantic_type(column.type), None)
+                if field_name in field_mappings:
+                    field_name, field_type = remap_field(field_mappings, field_name, field_type)
+                fields[field_name] = field_type
+
+            class Config(BaseConfig):
+                orm_mode = True
+
             self._model_namespace_map[model_name] = create_model(
-                model_name, __config__=type("Config", (), {"orm_mode": True}), **field_definitions
+                model_name,
+                __config__=Config,
+                __base__=None,
+                __module__=model_class.__module__,
+                __validators__={},
+                __cls_kwargs__={},
+                **fields,
             )
-            for related_entity_class in related_entity_classes:
-                self.to_data_container_class(model_class=related_entity_class)
         model = self._model_namespace_map[model_name]
-        model.update_forward_refs(**self._model_namespace_map)
+        model.update_forward_refs(**{**(localns or {}), **self._model_namespace_map})
         return model
 
     def from_data_container_instance(

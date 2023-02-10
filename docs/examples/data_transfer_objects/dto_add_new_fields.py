@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from pydantic import BaseModel
 
+from starlite import dto
 from starlite.dto.pydantic import PydanticFactory
 
 
@@ -10,5 +13,4 @@ class MyClass(BaseModel):
     second: int
 
 
-class MyClassDTO(PydanticFactory[MyClass]):
-    third: str
+MyClassDTO = PydanticFactory[Annotated[MyClass, dto.Config(fields={"third": (str, ...)})]]

@@ -24,7 +24,7 @@ def test_dto_from_model_instance() -> None:
 @pytest.mark.xfail(reason="sqlalchemy plugin model map returns wrong instance for test")
 def test_dto_to_model_instance() -> None:
     company_dto_instance = ToModelCompanyDTO(id=1, name="My Firm", worth=1000000.0)  # type: ignore
-    model_instance = company_dto_instance.to_model_instance()
+    model_instance = company_dto_instance.to_model()
 
     assert isinstance(model_instance, Company)
     for field in ToModelCompanyDTO.__fields__:

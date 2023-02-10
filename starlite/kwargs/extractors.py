@@ -15,6 +15,8 @@ from typing import (
     cast,
 )
 
+from typing_extensions import get_args
+
 from starlite.enums import ParamType, RequestEncodingType
 from starlite.exceptions import ValidationException
 from starlite.multipart import parse_multipart_form
@@ -27,6 +29,7 @@ from starlite.types import Empty
 from starlite.upload_file import UploadFile
 
 if TYPE_CHECKING:
+    from starlite import dto
     from starlite.connection import ASGIConnection, Request
     from starlite.kwargs import KwargsModel
     from starlite.kwargs.parameter_definition import ParameterDefinition
@@ -338,6 +341,35 @@ def create_url_encoded_data_extractor(
     )
 
 
+def create_dto_data_extractor(
+    signature_field: "SignatureField",
+) -> Callable[["Request[Any, Any, Any]"], Coroutine[Any, Any, Any]]:
+    """Create extractor for data annotated with a DTO type.
+
+    Args:
+        signature_field: A SignatureField instance.
+
+    Returns:
+        An extractor function.
+    """
+    dto_type: "dto.Factory"
+
+    if signature_field.is_non_string_iterable:
+        dto_type = get_args(signature_field.field_type)[0]
+
+        async def extract_dto_array(connection: "Request[Any, Any, Any]") -> Any:
+            return dto_type.array_from_buffer(await connection.body(), connection.content_type[0])
+
+        return extract_dto_array
+
+    dto_type = signature_field.field_type
+
+    async def extract_dto(connection: "Request[Any, Any, Any]") -> Any:
+        return dto_type.from_buffer(await connection.body(), connection.content_type[0])
+
+    return extract_dto
+
+
 def create_data_extractor(kwargs_model: "KwargsModel") -> Callable[[Dict[str, Any], "ASGIConnection"], None]:
     """Create an extractor for a request's body.
 
@@ -358,6 +390,11 @@ def create_data_extractor(kwargs_model: "KwargsModel") -> Callable[[Dict[str, An
             )
         else:
             data_extractor = create_url_encoded_data_extractor(is_data_optional=kwargs_model.is_data_optional)
+    elif kwargs_model.expected_dto_data:
+        data_extractor = cast(
+            "Callable[[ASGIConnection[Any, Any, Any, Any]], Coroutine[Any, Any, Any]]",
+            create_dto_data_extractor(kwargs_model.expected_dto_data),
+        )
     elif kwargs_model.expected_msgpack_data:
         data_extractor = cast(
             "Callable[[ASGIConnection[Any, Any, Any, Any]], Coroutine[Any, Any, Any]]", msgpack_extractor

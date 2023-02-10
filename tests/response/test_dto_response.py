@@ -103,7 +103,7 @@
 #         async_session: AsyncSession,
 #     ) -> ReadUserDTO:  # type: ignore
 #         """Create a new user and return it."""
-#         user: User = data.to_model_instance()  # type: ignore
+#         user: User = data.to_model()  # type: ignore
 #         async_session.add(user)
 #         await async_session.commit()
 #         return user

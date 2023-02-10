@@ -22,4 +22,4 @@ CompanyDTO = SQLAlchemyFactory[Company]
 
 @post()
 def create_company(data: CompanyDTO) -> Company:
-    return data.to_model_instance()
+    return data.to_model()
